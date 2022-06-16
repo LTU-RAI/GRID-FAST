@@ -1,0 +1,27 @@
+struct Line {
+  double slope, yInt;
+  double getYforX(double x) {
+    return slope*x + yInt;
+  }
+  // Construct line from points
+  bool fitPoints(const int *pts,const int *xPos, const int nPoints) {
+    double sumX=0, sumY=0, sumXY=0, sumX2=0;
+    for(int i=0; i<nPoints; i++) {
+        int x=xPos[i];
+        sumX += x;
+        sumY += pts[i];
+        sumXY += x * pts[i];
+        sumX2 += x * x;
+    }
+    double xMean = sumX / nPoints;
+    double yMean = sumY / nPoints;
+    double denominator = sumX2 - sumX * xMean;
+    if( std::fabs(denominator) < 1e-7 ) {
+        // Fail: it seems a vertical line
+        return false;
+    }
+    slope = (sumXY - sumX * yMean) / denominator;
+    yInt = yMean - slope * xMean;
+    return true;
+  }
+};
