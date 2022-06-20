@@ -728,8 +728,9 @@ class TopologyMapping{
                                             p[1].y=firstCoridorCenter[1][m];
                                         }
                                     }
-                                    ROS_INFO("ffd33");
-                                    
+                                    //ROS_INFO("ffd33");
+                                    p[2].x=i;
+                                    p[2].y=scondCoridorCenter[0][0];
                                     p[3].x=i;
                                     p[3].y=scondCoridorCenter[1][0];
 
@@ -740,7 +741,7 @@ class TopologyMapping{
 
                                     rotate_points(p,4,rotation,mapSize);
 
-                                    //ROS_INFO("%i,%i,%i,%i,%i,%i,%i,%i",p[0].x,p[0].y,p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y);
+                                    ROS_INFO("%i,%i,%i,%i,%i,%i,%i,%i",p[0].x,p[0].y,p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y);
                                     for(int k=0; k<4; k++){
                                         int tIndex=0;
                                         switch (k)
@@ -765,7 +766,7 @@ class TopologyMapping{
                                                 break;
                                             }
                                         }
-
+                                    ROS_INFO("ffd234");
                                         int dirX=0;
                                         int dirY=1;
                                         int lenght=0;
@@ -974,6 +975,7 @@ class TopologyMapping{
                                     for(int k=0; k<4; k++){
                                         scanMapOutHolder[p[k].x][p[k].y]=100;
                                     }
+                                    
                                 }
                             }
                         }
