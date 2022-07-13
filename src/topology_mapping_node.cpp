@@ -337,7 +337,6 @@ class TopologyMapping{
             int c=0;
             int l=1;
             while(Map[start.x+step.dir.x*l][start.y+step.dir.y*l]==0){
-                //ROS_INFO("l5");
                 newDirx=clockwise?step.dir.y:-step.dir.y;
                 newDiry=clockwise?-step.dir.x:step.dir.x;
                 step.dir.x=newDirx;
@@ -565,7 +564,6 @@ class TopologyMapping{
     void updateMap(const nav_msgs::OccupancyGrid& mapMsg){
         int width=mapMsg.info.width;
         int height=mapMsg.info.height;
-        //ROS_INFO("%i",height);
         //int mapResolution=mapMsg.occupancy.info.resolution;
         for(int x=0; x<width;x++){
             for(int y=0; y<height;y++){
@@ -589,7 +587,6 @@ class TopologyMapping{
             int tIndex=0;
 
             while (Map[p1->x][p1->y]!=0){
-                ROS_INFO("l4");
                 if(abs(p2->x-p1->x)>abs(p2->y-p1->y)&&abs(p2->x-p1->x)>2){
                     p1->x+=(p2->x-p1->x)<0?-1:1;
                 }
@@ -603,7 +600,6 @@ class TopologyMapping{
             int dirY=1;
             int lenght=0;
             while(Map[p1->x+dirX*(lenght+1)][p1->y+dirY*(lenght+1)]==0){
-                ROS_INFO("l3");
                 if(dirX==0 && dirY==1){
                     dirX=1;
                     dirY=0;
@@ -636,7 +632,6 @@ class TopologyMapping{
         vector<point_int> vo;
         vector<int> vint;
         bool selfDel=true;
-        //ROS_INFO("----------------");
         for(int sids=0; sids<2; sids++){
             for(int cw=0; cw<2; cw++){
                 ant_data step;
@@ -647,10 +642,7 @@ class TopologyMapping{
                 }else{
                     step.end=op.end;
                 }
-                //ROS_INFO("---");
                 for(int s=0; s<searchLenghtClean && empty_count<maxAntGap; s++){
-                    //ROS_INFO("%i, %i",step.end.x,step.end.y);
-                    //scanMapOutHolder[step.end.x][step.end.y]=100;
                     
                     if(step.emty_cell){
                         empty_count+=1;
@@ -662,7 +654,6 @@ class TopologyMapping{
                     for(int i=0; i<oplist.lenght; i++){
                         for(int j=0; j<oplist.list[i].size(); j++){
                             if(sids==0 && oplist.list[i][j].start==step.end && oplist.list[i][j].label!=-1){
-                                //ROS_INFO("start: %i, %i, end: %i, %i, step: %i, %i",oplist.list[i][j].start.x,oplist.list[i][j].start.y,oplist.list[i][j].end.x,oplist.list[i][j].end.y,step.end.x,step.end.y);
                                 vo.push_back({i,j});
                                 int sepL=cw==1?s:-s;
                                 vint.push_back(sepL);
@@ -671,7 +662,6 @@ class TopologyMapping{
                                 point_int p={i,j};
                                 for(int index=0; index<vo.size(); index++){
                                     if(vo[index]==p){
-                                        //ROS_INFO("start: %i, %i, end: %i, %i, step: %i, %i",oplist.list[i][j].start.x,oplist.list[i][j].start.y,oplist.list[i][j].end.x,oplist.list[i][j].end.y,step.end.x,step.end.y);
                                         vint[index]+=cw==0?s:-s;
                                         if(dist(op.start,op.end)+vint[index]/extendDevider<dist(oplist.list[i][j].start,oplist.list[i][j].end)){
                                             oplist.list[i][j].label=-1;
@@ -693,8 +683,6 @@ class TopologyMapping{
     }
 
     void topologyScan(){
-        //oplist.list[currentRotationIndex].clear();
-        //correctAllOpenings();
         for (int i = 0; i < scanSize; ++i){
             scanGroupIndex[i]=0;
         }
@@ -982,8 +970,9 @@ class TopologyMapping{
                                                 int cIndex=-1;
                                                 bool cheek=false;
                                                 int deb=0;
-                                                while (!cheek){
-                                                    ROS_INFO("l2");
+                                                int c=0;
+                                                while (!cheek && c<inSearchLenght){
+                                                    c++;
                                                         cheek=true;
                                                         for(int n=0; n<oplist.size(); n++){
                                                             if(step_info.end==oplist.get(n).end || step_info.end==oplist.get(n).start){
@@ -996,7 +985,6 @@ class TopologyMapping{
                                                                     o.end.y=step_info.end.y;
                                                                 }
                                                                 cheek=false;
-                                                                //ROS_INFO("%i, %i", step_info.end.x,step_info.end.y);
                                                             }
                                                         }
                                                         
@@ -1064,9 +1052,6 @@ class TopologyMapping{
     void creatPoligonList(){
         poly_list.clear();
         int label=1;
-        /*for(int i=0; i<opening_list.size(); i++){
-            ROS_INFO("%i, start: %i, %i, end: %i, %i",i,opening_list[i].start.x, opening_list[i].start.y,opening_list[i].end.x, opening_list[i].end.y);
-        }*/
 
         for(int l=0; l<oplist.lenght;l++){
             for(int i=0; i<oplist.list[l].size(); i++){
