@@ -51,6 +51,7 @@ struct opening{
     int label=1;
     int parent_poligon=-1;
     bool fliped=false;
+    int conected_to_path=-1;
 
     void flip(){
         point_int t=start;
@@ -88,6 +89,10 @@ struct Poligon_list{
     }
 
     void clear(){
+        for(int i=0;i<poly.size();i++){
+            poly[i].poligon_points.clear();
+            poly[i].sidesIndex.clear();
+        }
         poly.clear();
         label.clear();
     }
@@ -216,7 +221,7 @@ class TopologyMapping{
         int cfilter=0;
         int cfilterSize=15;
         int groupeNumber=15;
-        int numberOfDir=20;
+        int numberOfDir=30;
         int maxGapDistans=10;
         int extendDevider=4;
         int searchLenght=8;
@@ -229,6 +234,7 @@ class TopologyMapping{
         scanGroup **scanGarray;
         vector<opening> oplist;
         Poligon_list poly_list;
+        poligon poly;
         int *scanGroupIndex;
         int currentRotationIndex=0;
 
@@ -236,8 +242,10 @@ class TopologyMapping{
         int searchLenghtClean=100;
         int sercheLenthAnt=600;
         int sercheLenthAntConect=2000;
+        int sercheLenthAntConectPath=2000;
         int maxAntGap=4;
         int poligonRez=4;
+        int poligonRezPath=10;
         int minimumSercheLenght=5;
 
         double minimumAreaTest=0.3;
@@ -256,6 +264,9 @@ class TopologyMapping{
         
 
     void loadMemory(){
+        oplist.resize(200);
+        poly_list.poly.resize(250);
+        poly_list.label.resize(250);
         //alocate for Maps
         scanMap=new int*[scanSize];
         scanMapOut=new int*[scanSize];
@@ -298,14 +309,13 @@ class TopologyMapping{
         ros::Rate rate(100); // Hz
         
         while (ros::ok()){
-            
             oplist.clear();
-            
+            poly_list.clear();
+
             for(int i=0; i<numberOfDir;i++){
-                 topologyScan();
-                
+                topologyScan();
                 for(int j=0; j<oplist.size(); j++){
-                    if(oplist[j].label==-1 && true){
+                    if(oplist[j].label==-1){
                         oplist.erase(oplist.begin()+j);
                         j-=1;
                     }
@@ -314,17 +324,23 @@ class TopologyMapping{
             }
             for(int j=0; j<oplist.size(); j++){
                 fitToCoridor(&oplist[j],40,true, true);
+                if(dist(oplist[j].start,oplist[j].end)<minGroupSize){
+                    oplist.erase(oplist.begin()+j);
+                    j-=1;;
+                }
             }
             
-            poly_list.clear();
             if(oplist.size()>1){
-
                 creatPoligonList();
-
+                if(poly_list.size()>0){
+                    creatPathPoligons();
+                }
+            
+                
                 for(int b=0; b<oplist.size(); b++){
                     if(oplist[b].parent_poligon==-1 || oplist[b].label==-1){
-                        //oplist.erase(oplist.begin()+b);
-                        //b-1;
+                        oplist.erase(oplist.begin()+b);
+                        b-1;
                     }
                 }
                 
@@ -338,7 +354,6 @@ class TopologyMapping{
                 
             }
             pubMap();
-            
             ros::spinOnce();
             rate.sleep();
         }
@@ -427,7 +442,7 @@ class TopologyMapping{
         for(int d=0;d<8;d++){
             bool check=true;
             for(int c=0; c<checkLenght; c++){  
-                if(Map[start.x+step.dir.x+checkDir.x*c][start.y+step.dir.y+checkDir.y*c]==100){
+                if(Map[start.x+step.dir.x+checkDir.x*c][start.y+step.dir.y+checkDir.y*c]!=0){
                     check=false;
                     break;
                 }
@@ -499,7 +514,6 @@ class TopologyMapping{
             search_step.dir={0,0};
             for(int m=0;m<inSearchLenght && number_of_emty<maxAntGap;m++){
                 num_steps+=1;
-                //ROS_INFO("%i , %f",sides,minimumDistans);
                 search_step=ant_step(search_step.end,cw,search_step.dir);
                 if(sida1!=NULL){
                     s1.push_back(search_step.end);
@@ -510,32 +524,22 @@ class TopologyMapping{
                 if(!search_step.emty_cell){
                     double d=dist(search_step.end,!op->start_is_outside?op->start:op->end);
                     if((minimumDistans<0 || d<minimumDistans)){
-                        opening newOp;
-                        if(op->start_is_outside){
-                            newOp.start=search_step.end;
-                            newOp.end=op->end;
-                        }else{
-                            newOp.end=search_step.end;
-                            newOp.start=op->start;
-                        }
-
-                        if(!checkForWall(newOp,1) || true){
-                            for(int k=0; k<s1.size(); k++){
-                                if(sides==0){
-                                    sida1->push_back(s1[k]);
-                                }else{
-                                    sida1->insert(sida1->begin() ,s1[k]);
-                                }
-                            }
-                            s1.clear();
-                            minimumDistans=d;
-                            m=0;
-                            if(op->start_is_outside){
-                                op->start=search_step.end;
+                        for(int k=0; k<s1.size(); k++){
+                            if(sides==0){
+                                sida1->push_back(s1[k]);
                             }else{
-                                op->end=search_step.end;
+                                sida1->insert(sida1->begin() ,s1[k]);
                             }
                         }
+                        s1.clear();
+                        minimumDistans=d;
+                        m=0;
+                        if(op->start_is_outside){
+                            op->start=search_step.end;
+                        }else{
+                            op->end=search_step.end;
+                        }
+                        
                         
                     }
                 }else{
@@ -566,31 +570,22 @@ class TopologyMapping{
                 if(!search_step.emty_cell){
                     double d=dist(search_step.end,op->start_is_outside?op->start:op->end);
                     if(minimumDistans<0 || d<minimumDistans){
-                        opening newOp;
-                        if(!op->start_is_outside){
-                            newOp.start=search_step.end;
-                            newOp.end=op->end;
-                        }else{
-                            newOp.end=search_step.end;
-                            newOp.start=op->start;
-                        }
-                        if(!checkForWall(newOp,1)|| true){
-                            for(int k=0; k<s2.size(); k++){
-                                if(sides==0){
-                                    sida2->push_back(s2[k]);
-                                }else{
-                                    sida2->insert(sida1->begin() ,s2[k]);
-                                }
-                            }
-                            s2.clear();
-                            m=0;
-                            minimumDistans=d;
-                            if(!op->start_is_outside){
-                                op->start=search_step.end;
+                        for(int k=0; k<s2.size(); k++){
+                            if(sides==0){
+                                sida2->push_back(s2[k]);
                             }else{
-                                op->end=search_step.end;
+                                sida2->insert(sida1->begin() ,s2[k]);
                             }
                         }
+                        s2.clear();
+                        m=0;
+                        minimumDistans=d;
+                        if(!op->start_is_outside){
+                            op->start=search_step.end;
+                        }else{
+                            op->end=search_step.end;
+                        }
+                        
                     }
                 }else{
                     number_of_emty+=1;
@@ -636,11 +631,11 @@ class TopologyMapping{
     }
 
     bool checkSquareIntersecting(point s1[4],point s2[4]){
-        point *poly[]={s1,s2};
+        point *polyp[]={s1,s2};
         for(int index=0; index<2;index++){
             for(int i=0;i<4;i++){
-                point p1=poly[index][i];
-                point p2=poly[index][(i+1)%4];
+                point p1=polyp[index][i];
+                point p2=polyp[index][(i+1)%4];
 
                 point normal;
                 normal.x=p2.y-p1.y;
@@ -819,10 +814,9 @@ class TopologyMapping{
     bool checkForWall(opening o,int maximumWallCount){
         int wallcount=0;
         double opLenght=dist(o.start,o.end);
-        point normdVop={(o.end.x-o.start.x)/opLenght,(o.end.y-o.start.y)/(opLenght*1.2)};
+        point normdVop={(o.end.x-o.start.x)/(opLenght*1.2),(o.end.y-o.start.y)/(opLenght*1.2)};
         for(int wallScan=0;wallScan<(int)(opLenght*1.2);wallScan++){
-            point_int pp={o.start.x+(int)(normdVop.x*wallScan), o.start.y+(int)(normdVop.y*wallScan)};
-            
+            point_int pp={o.start.x+(int)(std::round(normdVop.x*wallScan)), o.start.y+(int)(std::round(normdVop.y*wallScan))};
             if(Map[pp.x][pp.y]==100){
                 wallcount+=1;
             }
@@ -955,6 +949,7 @@ class TopologyMapping{
                                 }
                             }
                             if(countRealRoads>=2){
+                                
                                 point_int p[4];
                                 int inSearchLenght=40;
                                 
@@ -968,9 +963,6 @@ class TopologyMapping{
                                 p[3].y=scondCoridorCenter->end;
                                 rotate_points(p,4,rotation,mapSize);
 
-                                //ROS_INFO("%i,%i,%i,%i,%i,%i,%i,%i",p[0].x,p[0].y,p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y);
-                                
-
                                 for(int k=0; k<4;k+=2){
                                     opening o;
                                     if(direction==0){
@@ -982,15 +974,14 @@ class TopologyMapping{
                                     }
 
                                     o.start_is_outside=k==0&&direction==1||k==2&&direction==0;
-                                    
                                     correctOpening(&o);
+                                   
                                     if(!fitToCoridor(&o,inSearchLenght)) continue;
                                     double opLenght=dist(o.start,o.end);
                                     if(opLenght<minGroupSize){
                                         continue;
                                     }
                                     
-
                                     for(int sids=0; sids<2;sids++){
                                         ant_data step;
                                         step.end=sids==0?o.start:o.end;
@@ -1012,14 +1003,9 @@ class TopologyMapping{
                                                 }
                                             }
                                         }
-                                        if(c==inSearchLenght){
-                                            //continue;
-                                        }
                                     }
-                                    
                                     bool skip=false;
-
-                                for(int h=0; h<oplist.size() && !skip; h++){
+                                for(int h=0; h<oplist.size() && !skip && o.label!=-1; h++){
                                         opening oplistComp=oplist[h];
                                         if(intersect_line(o,oplistComp) && oplistComp.label!=-1){
 
@@ -1098,13 +1084,16 @@ class TopologyMapping{
                                                     break;
                                                 }
 
-                                            }else if(o.start_is_outside && conected[0] || !conected[1]){
+                                            }else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
                                                 sides=0;
                                             }
                                             int c=0;
+                                            step_info.end=conect[sides];
+                                            step_info.dir=conection_dir[sides];
+                                            
                                             while(intersect_line(oplistComp,o) && c<inSearchLenght){
                                                 c+=1;
-                                                step_info=ant_step(conect[sides],conection_cw[sides],conection_dir[sides]);
+                                                step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir);
                                                 if(sides==0){
                                                     o.start.x=step_info.end.x;
                                                     o.start.y=step_info.end.y;
@@ -1151,7 +1140,6 @@ class TopologyMapping{
                                             }
                                         }
                                     }
-
                                     for(int h=0; h<oplist.size() && !skip; h++){
                                         opening oplistComp1=oplist[h];
                                         if(intersect_line(o,oplistComp1) && oplistComp1.label!=-1){
@@ -1178,14 +1166,14 @@ class TopologyMapping{
                                     if(dist(o.start,o.end)<minGroupSize){
                                         continue;
                                     }
-                                    if(checkForWall(o, 1))continue;
+                                    if(checkForWall(o, 2))continue;
                                     if(!cleanOpenings(o)){
-                                         o.label=-1;
+                                         continue;//o.label=-1;
                                     }
                                     oplist.push_back(o);
-
-                                }
                                     
+                                } 
+                                
                             }
                         }
                     }
@@ -1223,23 +1211,28 @@ class TopologyMapping{
     }
 
     void remove_parent_poligon(int opIndex, bool remove_openign=false){
-        if(oplist[opIndex].parent_poligon>=0){
-            int pIndex=oplist[opIndex].parent_poligon;
-            for(int i=0; i<poly_list.poly[pIndex].sidesIndex.size();i++){
-                oplist[poly_list.poly[pIndex].sidesIndex[i]].parent_poligon=-1;
-                poly_list.poly[pIndex].inactiv=true;
+        if(opIndex>=0){
+            if(oplist[opIndex].parent_poligon>=0){
+                int pIndex=oplist[opIndex].parent_poligon;
+                for(int i=0; i<poly_list.poly[pIndex].sidesIndex.size();i++){
+                    oplist[poly_list.poly[pIndex].sidesIndex[i]].parent_poligon=-1;
+                    poly_list.poly[pIndex].inactiv=true;
+                }
             }
-        }
-        if(remove_openign){
-            oplist[opIndex].label=-1;
+            if(remove_openign){
+                oplist[opIndex].label=-1;
+            }
         }
     }
 
     void creatPoligonList(){
         for(int i=0; i<oplist.size(); i++){
-            if(oplist[i].parent_poligon==-1 && oplist[i].label!=-1){
+            if(oplist[i].parent_poligon==-1 && oplist[i].label==1){
                 bool cw=true;
-                poligon poly;
+                poly.poligon_points.clear();
+                poly.sidesIndex.clear();
+                poly.inactiv=false;
+                poly.label=1;
                 poly.sidesIndex.push_back(i);
                 oplist[i].parent_poligon=-2;
                 ant_data step_info;      
@@ -1252,8 +1245,6 @@ class TopologyMapping{
                 int totalSlenght=0;
                 int opIndex;
                 while(!cheek){
-                    
-                    //ROS_INFO("%i",targetIndex);
                     int empty_cell_count=0;
                     if(cw){
                         step_info.end=oplist[targetIndex].start; 
@@ -1265,6 +1256,7 @@ class TopologyMapping{
                     poly_points.clear();
                     step_info.dir={0,0};
                     for(int s=0; s<=sercheLenthAntConect; s++){
+                         
                         if(rezCounter>=poligonRez){
                             rezCounter=0;
                             poly_points.push_back(step_info.end);
@@ -1288,6 +1280,7 @@ class TopologyMapping{
                                     break;
                                 }else{
                                     if(poly.sidesIndex.size()>1){
+                                        ROS_INFO("creat new opening");
                                         //creat mising openign
                                         opening newOp;
                                         newOp.start=oplist[targetIndex].end;
@@ -1299,7 +1292,7 @@ class TopologyMapping{
                                         poly.sidesIndex.push_back(oplist.size());
                                         int newIndex=oplist.size();
                                         oplist.push_back(newOp);
-                                        if(!checkForWall(newOp,1) && polyAreaTest(poly)>minimumAreaTest){
+                                        if(!checkForWall(newOp,2)){
                                             for(int k=0; k<s2.size();k+=poligonRez){
                                                 poly.add_point(s2[k],cw);
                                             }
@@ -1312,11 +1305,13 @@ class TopologyMapping{
                                             complet=true;
                                         }else{//bad new opening, remove conflicting opening insted
                                             oplist[newIndex].parent_poligon=-1;
-                                            remove_parent_poligon(opIndex,true);
+                                            if(opIndex>=0){
+                                                remove_parent_poligon(opIndex,true);
+                                                i-=1;
+                                            }
                                             cheek=true;
-                                            i-=1;
+                                            
                                         }
-                                        
                                     }
                                     
                                     ROS_INFO("found no conection don serching");
@@ -1327,25 +1322,25 @@ class TopologyMapping{
                         
                         opIndex=check_and_get_opening(step_info.end,cw?2:1,true);
                         //Good conection
+                        
                         if(opIndex!=-1){
                                 poly_points.push_back(step_info.end);
                                 for(int k=0;k<poly_points.size(); k++){
                                     poly.add_point(poly_points[k],cw);
+                                    
                                 }
                                 totalSlenght+=s;
                                 if(oplist[opIndex].parent_poligon!=-1 &&oplist[opIndex].parent_poligon!=-2){
                                     remove_parent_poligon(opIndex);
                                 }
                                 if(oplist[opIndex].parent_poligon==-1){
-                                    ROS_INFO("found conection");
                                     oplist[opIndex].parent_poligon=-2;
                                     poly.sidesIndex.push_back(opIndex);
                                     targetIndex=opIndex;
                                     break;
-                                }else if(poly.sidesIndex.size()==2 && polyAreaTest(poly)<minimumAreaTest){//totalSlenght<=minimumSercheLenght){//to smal conection fliping openings
+                                }else if(poly.sidesIndex.size()==2 && totalSlenght<=minimumSercheLenght){//to smal conection fliping openings
                                     ROS_INFO("small conection");
                                     oplist[targetIndex].parent_poligon=-1;
-                                    ROS_INFO("%i",i);
                                     if(oplist[i].fliped){//remove opening if flipt two times
                                         oplist[i].label=-1;
                                     }else{
@@ -1393,7 +1388,124 @@ class TopologyMapping{
                             oplist[poly.sidesIndex[p]].parent_poligon=-1;
                         }
                     }
+                }
+            }
+        }
+    }
+
+    void creatPathPoligons(){
+        for(int i=0; i<oplist.size(); i++){
+            if(oplist[i].conected_to_path==-1 && oplist[i].parent_poligon>=0 && !poly_list.poly[oplist[i].parent_poligon].inactiv){
+                
+                poly.poligon_points.clear();
+                poly.sidesIndex.clear();
+                poly.inactiv=false;
+                poly.label=1;
+                poly.sidesIndex.push_back(i);
+                oplist[i].conected_to_path=-2;
+                ant_data step_info;      
+                bool check=false;
+                bool complet=false;
+                int opIndex, firstOpIndex=-2, pathType=0;
+                for(int sids=0; sids<2 && !check; sids++){
+                    int empty_cell_count=0;
+                    bool cw=sids==0;
+                    if(cw){
+                        step_info.end=oplist[i].end; 
+                    }else{
+                        step_info.end=oplist[i].start;
+                    }
+                    point_int firstPos=step_info.end;
+                    poly.add_point(step_info.end,cw);
+                    int rezCounter=0;
                     
+                    step_info.dir={0,0};
+                    for(int s=0; s<=sercheLenthAntConect; s++){
+                         
+                        if(rezCounter>=poligonRezPath){
+                            rezCounter=0;
+                            poly.add_point(step_info.end,cw);
+                        }else{
+                            rezCounter+=1;
+                        }
+                        step_info=ant_step(step_info.end,cw,step_info.dir);
+
+                        if(step_info.end==firstPos){
+                            check=true;
+                            break;
+                        }
+
+                        opIndex=check_and_get_opening(step_info.end,cw?1:2);
+                        
+                        // found conection
+                        if(opIndex!=-1 || empty_cell_count>maxAntGap || s==sercheLenthAntConect){
+                            if(oplist[opIndex].parent_poligon>=0){
+                                oplist[opIndex].conected_to_path=-2;
+                                poly.sidesIndex.push_back(opIndex);
+                                poly.add_point(step_info.end,cw);
+
+                                if(cw){
+                                    firstOpIndex=opIndex;
+                                    if(opIndex==i){
+                                        check=true;
+                                        complet=true;
+                                        pathType=1;
+                                    }else if(opIndex==-1){
+                                        pathType=2;
+                                    }
+                                    break;
+                                }else{
+                                    if(opIndex!=firstOpIndex){
+                                        
+                                        ROS_INFO("warning, path wiht more then two coneciton");
+                                        pathType=4;
+                                    }else if(pathType==0){
+                                        pathType=3;
+                                    }
+
+                                    complet=true;
+                                        
+                                    break;
+                                }
+                            }
+                        }
+                        if(step_info.emty_cell){
+                            empty_cell_count+=1;
+                        }  
+                    }
+                }
+                if(complet){
+                    int label=0;
+                    switch (pathType)
+                    {
+                    case 1:
+                        label=41;
+                        break;
+
+                    case 2:
+                        label=52;
+                        break;
+                    
+                    case 3:
+                        label=64;
+                        break;
+
+                    case 4:
+                        label=76;
+                        break;
+
+                    default:
+                        break;
+                    }
+
+                    for(int p=0;p<poly.sidesIndex.size();p++){
+                        oplist[poly.sidesIndex[p]].conected_to_path=poly_list.poly.size();
+                    }
+                    poly_list.add(poly,label);
+                }else if(check){
+                    for(int p=0;p<poly.sidesIndex.size();p++){
+                        oplist[poly.sidesIndex[p]].conected_to_path=-1;
+                    }
                 }
             }
         }
