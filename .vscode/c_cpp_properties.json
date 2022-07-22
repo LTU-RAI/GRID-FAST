@@ -6,13 +6,14 @@
         "limitSymbolsToIncludedHeaders": false
       },
       "includePath": [
+        "/home/scott/rosWS/src/topology_mapping/topology_mapping/include/**",
         "/home/scott/rosWS/devel/include/**",
         "/opt/ros/noetic/include/**",
         "/home/scott/rosWS/src/topology_mapping/include/**",
         "/home/scott/rosWS/src/topology_mapping_demo/include/**",
         "/home/scott/rosWS/src/topology_mapping_demo2/include/**",
         "/home/scott/rosWS/src/traversability_mapping/traversability_mapping/include/**",
-        "/usr/include/**"
+        "/usr/include/**"        
       ],
       "name": "ROS",
       "intelliSenseMode": "gcc-x64",
