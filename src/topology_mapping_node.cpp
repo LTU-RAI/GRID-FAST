@@ -70,11 +70,10 @@ class TopologyMapping{
                     for(int b=0; b<poly_list.poly.size(); b++){
                         if(poly_list.poly[b].inactiv){
                             poly_list.poly.erase(poly_list.poly.begin()+b);
+                            poly_list.label.erase(poly_list.label.begin()+b);
                             b-=1;
                         }
                     }
-                    
-                    
                 }
 
                 pubMap();
@@ -208,15 +207,14 @@ class TopologyMapping{
                                             }
                                     
                                             complet=true;
+
                                         }else{//bad new opening, remove conflicting opening insted
                                             oplist[newIndex].parent_poligon=-1;
                                             //oplist[newIndex].label=-1;
                                             if(opIndex>=0){
                                                 remove_parent_poligon(opIndex,true);
                                                 i-=1;
-                                            }
-                                            cheek=true;
-                                            
+                                            }        
                                         }
                                     }
                                     
@@ -240,6 +238,7 @@ class TopologyMapping{
                                     remove_parent_poligon(opIndex);
                                 }
                                 if(oplist[opIndex].parent_poligon==-1){
+                                    ROS_INFO("found conection");
                                     oplist[opIndex].parent_poligon=-2;
                                     poly.sidesIndex.push_back(opIndex);
                                     targetIndex=opIndex;
@@ -283,6 +282,7 @@ class TopologyMapping{
                             label=20;
                         }else{
                             label=30;
+                            ROS_INFO("%li",poly.sidesIndex.size());
                         }
 
                         for(int p=0;p<poly.sidesIndex.size();p++){

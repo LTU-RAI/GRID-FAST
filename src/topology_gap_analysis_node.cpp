@@ -585,16 +585,6 @@ class TopologyMapping{
                                                         break;
                                                     }
                                                     
-                                                }else if(conected[0] && conected[1] && conection_waite!=-1){
-                                                    if(dist(o.start,o.end)+conection_waite/extendDevider<dist(oplistComp.start,oplistComp.end)){
-                                                        oplist.erase(oplist.begin()+h);
-                                                        h-=1;
-                                                        break;
-                                                    }else{
-                                                        skip=true;
-                                                        break;
-                                                    }
-
                                                 }else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
                                                     sides=0;
                                                 }
