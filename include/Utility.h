@@ -1,5 +1,4 @@
 #include "ros/ros.h"
-#include <thread>
 #include <math.h>
 #include <vector>
 #include <nav_msgs/OccupancyGrid.h>
@@ -19,7 +18,7 @@ int cGroupeSize=0;
 int cfilter=0;
 int cfilterSize=15;
 int groupeNumber=60;
-int numberOfDir=5;
+int numberOfDir=6;
 int numberOfDirFilter=4;
 int maxGapDistans=5;
 int extendDevider=4;
@@ -277,6 +276,7 @@ bool intersect_line(opening o1,opening o2, int** map){
             step.dir={0,0};
             step.end=side==0?o1.start:o1.end;
             for(int s=0; s<6;s++){
+                //ROS_INFO("%i, %i",step.end.x,step.end.y);
                 step=ant_step(step.end,d==0,step.dir,map);
                 if(step.end==o2.start || step.end==o2.end){
                     if(side==0){
@@ -292,7 +292,6 @@ bool intersect_line(opening o1,opening o2, int** map){
             return true;
         }
     }
-    
     
     double l=1.2;
     double l1 = dist(o1.start,o1.end);

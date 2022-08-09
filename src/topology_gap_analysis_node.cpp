@@ -22,6 +22,7 @@ class TopologyMapping{
         int **scanMapOutTransform;
         scanGroup ***scanGarray;
         int **scanGroupIndex;
+        point_int ***mapTransform;
         
 
 
@@ -36,6 +37,7 @@ class TopologyMapping{
         
 
     void loadMemory(){
+        generateMapTransform();
         oplist.resize(200);
         //alocate for Maps
         scanMap=new int*[scanSize];
@@ -85,7 +87,6 @@ class TopologyMapping{
         while (ros::ok()){
             oplist.clear();
 
-
             topologyScan();
             for(int j=0; j<oplist.size(); j++){
                 if(oplist[j].label==-1){
@@ -93,7 +94,6 @@ class TopologyMapping{
                     j-=1;
                 }
             }
-
                 
             
             for(int j=0; j<oplist.size(); j++){
@@ -104,42 +104,94 @@ class TopologyMapping{
                         j-=1;
                     }
                 }
-                
+            }
+            for(int j=0; j<oplist.size(); j++){
                 for(int b=0; b<oplist.size(); b++){
                     if(intersect_line(oplist[j],oplist[b],topMap) && oplist[b].label!=-1 && oplist[j].label!=-1 && j!=b){
                         ROS_INFO("overlap");
                         if(dist(oplist[j].start,oplist[j].end)<dist(oplist[b].start,oplist[b].end)){
                             oplist[b].label=-1;
-                            ROS_INFO("o1");
                         }else{
                             oplist[j].label=-1;
-                            ROS_INFO("o2");
                         }
                     }
                     
                 }
                 
             }
-
             pubMap();
             ros::spinOnce();
             rate.sleep();
         }
     }
 
-    void rotate_points(point_int *p,const int size, const double rotation, const int sizeMap){
+    void generateMapTransform(){
+        mapTransform= new point_int**[numberOfDir];
+
+        for(int angle=0; angle<numberOfDir; angle++){
+            mapTransform[angle]=new point_int*[mapSize];
+            for(int i=0; i<mapSize;i++){
+                mapTransform[angle][i]=new point_int[mapSize];
+            }
+            float rotation=M_PI*angle/numberOfDir;
+            float cosA=cos(rotation);
+            float sinA=sin(rotation);
+            int halfMapSize=mapSize/2;
+            for(int x=0;x<mapSize;x++){
+                for(int y=0;y<mapSize;y++){
+                    int newX=int(std::round(((x-halfMapSize) *cosA-(y-halfMapSize)*sinA)))+halfMapSize;
+                    int newY=int(std::round(((x-halfMapSize) *sinA+(y-halfMapSize)*cosA)))+halfMapSize;
+                    if((newX<0||newX>=mapSize)||(newY<0||newY>=mapSize)){
+                        mapTransform[angle][x][y]={-1,-1};
+                    }else{
+                        mapTransform[angle][x][y]={newX,newY};
+                    }
+
+                }
+            }
+        }
+    }
+
+    int getMapTransform(int **map, const int x,const int y, const int angIndex){
+        if(mapTransform[angIndex][x][y].x==-1) return -1;
+        return map[mapTransform[angIndex][x][y].x][mapTransform[angIndex][x][y].y];
+    }
+
+    void setMapTransform(int **map, const int x,const int y, const int angIndex, int value){
+        if(mapTransform[angIndex][x][y].x==-1) return;
+        map[mapTransform[angIndex][x][y].x][mapTransform[angIndex][x][y].y]=value;
+    }
+
+    /*void rotate_points(int **map, point_int *p,const int angIndex){
+        *p= mapTransform[angIndex][p->x][p->y];
+    }*/
+    vector<opening> rotate_points(vector<opening> op,const int size, const double rotation, const int sizeMap){
+        vector<opening> newOp;
+        newOp.resize(op.size());
         float cosA=cos(rotation);
         float sinA=sin(rotation);
         int halfMapSize=sizeMap/2;
-        for(int i=0; i<size; i++){
-            int newX=int(std::round(((p[i].x-halfMapSize) *cosA-(p[i].y-halfMapSize)*sinA)))+halfMapSize;
-            int newY=int(std::round(((p[i].x-halfMapSize) *sinA+(p[i].y-halfMapSize)*cosA)))+halfMapSize;
-            p[i].x=newX;
-            p[i].y=newY;
+        for(int i=0; i<op.size();i++){
+            for(int sids=0; sids<2;sids++){
+                point_int p=op[i].start;
+                if(sids==1){
+                    p=op[i].end;
+                }
+                
+                int newX=int(std::round(((p.x-halfMapSize) *cosA-(p.y-halfMapSize)*sinA)))+halfMapSize;
+                int newY=int(std::round(((p.x-halfMapSize) *sinA+(p.y-halfMapSize)*cosA)))+halfMapSize;
+                p.x=newX;
+                p.y=newY;
+                if(sids==0){
+                    newOp[i].start=p;
+                }else{
+                    newOp[i].end=p;
+                }
+            }
+            newOp[i].start_is_outside=op[i].start_is_outside;
         }
-
+        return newOp;        
     }
-
 
     void rotateMap(float angel,int sizeMap,int **mapOut,int **map){
         float cosA=cos(angel);
@@ -308,7 +360,7 @@ class TopologyMapping{
             float rotation=M_PI*angle/numberOfDir;
             bool filter=numberOfDir%((int)(numberOfDir/numberOfDirFilter))==0;
             //Copy the map to scanMap
-            rotateMap(rotation,mapSize,scanMap,Map);
+            //rotateMap(rotation,mapSize,scanMap,Map);
             
             //Clear scanMapOutput from previus scan
             for (int i = 0; i < scanSize; ++i){
@@ -321,7 +373,7 @@ class TopologyMapping{
                 for(int j=1;j<scanSize-1;j++){
 
                     //finde groups
-                    if(scanMap[i][j]==0){
+                    if(getMapTransform(Map,i,j,angle)==0){
                         //check if space is free
                         if(cGroupeSize==0){
                             scanGarray[angle][i][scanGroupIndex[angle][i]].start=j;
@@ -329,7 +381,7 @@ class TopologyMapping{
                         cGroupeSize+=1;
                         cfilter=0;
                     //filter out smal point opstacals
-                    }else if (scanMap[i][j]==-1 && cfilter<cfilterSize){
+                    }else if (getMapTransform(Map,i,j,angle)==-1 && cfilter<cfilterSize){
                         cfilter+=1;
                     //if findeing ostacals biger then filter end serche
                     }else{
@@ -343,7 +395,7 @@ class TopologyMapping{
                             if(filter){
                                 for(int m=scanGarray[angle][i][scanGroupIndex[angle][i]].start;
                                     m<j-cfilter; m++){
-                                        scanMapOut[i][m]=0;
+                                        setMapTransform(scanMapOut,i,m,angle,0);
                                 }
                             }
                             scanGroupIndex[angle][i]+=1;
@@ -351,7 +403,7 @@ class TopologyMapping{
                         }else if(cGroupeSize>0 && filter){
                             for(int m=scanGarray[angle][i][scanGroupIndex[angle][i]].start;
                                 m<j-cfilter; m++){
-                                    scanMapOut[i][m]=scanMap[i][scanGarray[angle][i][scanGroupIndex[angle][i]].start-1];
+                                    setMapTransform(scanMapOut,i,m,angle,getMapTransform(Map,i,scanGarray[angle][i][scanGroupIndex[angle][i]].start-1,angle));
                             }
                         }
                         cfilter=0;
@@ -376,14 +428,13 @@ class TopologyMapping{
                 }
             }
             if(filter){
-                rotateMap(-rotation,mapSize,scanMapOutTransform,scanMapOut);
+                //rotateMap(-rotation,mapSize,scanMapOutTransform,scanMapOut);
                 
                 for(int x=0; x<mapSize;x++){
                     for(int y=0;y<mapSize;y++){
-                        if(scanMapOutTransform[x][y]!=-1){
-                            topMap[x][y]=(scanMapOutTransform[x][y]>=70 || topMap[x][y]>=70)?100:0;
+                        if(scanMapOut[x][y]!=-1){
+                            topMap[x][y]=(scanMapOut[x][y]>=70 || topMap[x][y]>=70)?100:0;
                         }
-                        scanMapOutTransform[x][y]=-1;
                         scanMapOut[x][y]=-1;
                     }
                 } 
@@ -420,271 +471,253 @@ class TopologyMapping{
                                 }
                             }
 
-                            if(depthCount>=minCoridorSize){
-                                int countRealRoads=0;
-                                scanGroup *firstCoridorCenter;
-                                scanGroup *scondCoridorCenter;
-                                int loopAmount=scanGarray[angle][i][index].prevGroupIndex;
-                                if(direction==1){
-                                    loopAmount=scanGarray[angle][i][index].nextGroupIndex;
+                            if(depthCount<minCoridorSize) continue;
+
+                            vector<opening> newOpList;
+
+                            int loopAmount=scanGarray[angle][i][index].prevGroupIndex;
+                            if(direction==1){
+                                loopAmount=scanGarray[angle][i][index].nextGroupIndex;
+                            }
+                            for(int h=0;h<loopAmount;h++){
+                                depthCount=0;
+                                if(direction==0){
+                                    p=scanGarray[angle][i][index].prevGroup[h];
+                                }else{
+                                    p=scanGarray[angle][i][index].nextGroup[h];
                                 }
-                                bool first=true;
-                                for(int h=0;h<loopAmount;h++){
-                                    depthCount=0;
+
+                                while (p!=NULL){
+
+                                    depthCount+=1;
+                                    if(depthCount==minCoridorSize){
+                                        opening newOp;
+                                        if(direction==0){
+                                            newOp.start={i,scanGarray[angle][i][index].prevGroup[h]->end};
+                                            newOp.end={i,scanGarray[angle][i][index].prevGroup[h]->start};
+                                        }else{
+                                            newOp.start={i,scanGarray[angle][i][index].nextGroup[h]->start};
+                                            newOp.end={i,scanGarray[angle][i][index].nextGroup[h]->end};
+                                        }
+                                        newOpList.push_back(newOp);
+                                        break;
+                                    }
+
                                     if(direction==0){
-                                        p=scanGarray[angle][i][index].prevGroup[h];
+                                        p=p->prevGroup[0];
                                     }else{
-                                        p=scanGarray[angle][i][index].nextGroup[h];
+                                        p=p->nextGroup[0];
                                     }
-                                    if(first){
-                                        firstCoridorCenter=p;
-                                    }else{
-                                        scondCoridorCenter=p;
-                                    }
-                                    while (p!=NULL){
-
-                                        depthCount+=1;
-                                        if(depthCount==minCoridorSize){
-                                            countRealRoads+=1;
-                                            break;
-                                        }
-
-                                        if(direction==0){
-                                            p=p->prevGroup[0];
-                                        }else{
-                                            p=p->nextGroup[0];
-                                        }
-                                    }
-                                    if(countRealRoads==1){
-                                        first=false;
-                                    }
-                                }
-                                if(countRealRoads>=2){
-                                    
-                                    point_int p[4];
-                                    int inSearchLenght=40;
-                                    
-                                    p[0].x=i;
-                                    p[0].y=firstCoridorCenter->start;
-                                    p[1].x=i;
-                                    p[1].y=firstCoridorCenter->end;
-                                    p[2].x=i;
-                                    p[2].y=scondCoridorCenter->start;
-                                    p[3].x=i;
-                                    p[3].y=scondCoridorCenter->end;
-                                    rotate_points(p,4,rotation,mapSize);
-
-                                    for(int k=0; k<4;k+=2){
-                                        opening o;
-                                        if(direction==0){
-                                            o.start=p[k+1];
-                                            o.end=p[k];
-                                        }else{
-                                            o.start=p[k];
-                                            o.end=p[k+1];
-                                        }
-
-                                        o.start_is_outside=k==0&&direction==1||k==2&&direction==0;
-                                        correctOpening(&o);
-                                    
-                                        if(!fitToCoridor(&o,inSearchLenght,topMap)) continue;
-                                        double opLenght=dist(o.start,o.end);
-                                        if(opLenght<minGroupSize){
-                                            continue;
-                                        }
-                                        
-                                        for(int sids=0; sids<2;sids++){
-                                            ant_data step;
-                                            step.end=sids==0?o.start:o.end;
-                                            bool cheek=false;
-                                            int c=0;
-                                            while (!cheek && c<inSearchLenght){
-                                                c++;
-                                                cheek=true;
-                                                
-                                                if(check_for_opening(step.end,3)){
-                                                    step=ant_step(step.end,sids==0,step.dir,topMap);
-                                                    if(sids==0){
-                                                        o.start=step.end;
-                                                    }else{
-                                                        o.end=step.end;
-                                                    }
-                                                    cheek=false;
-                                                    break;
-                                                }
-                                                
-                                            }
-                                        }
-                                        bool skip=false;
-                                    for(int h=0; h<oplist.size() && !skip && o.label!=-1; h++){
-                                            opening oplistComp=oplist[h];
-                                            if(intersect_line(o,oplistComp,topMap) && oplistComp.label!=-1 && o.label!=-1){
-
-                                                bool conected[]={false, false};
-                                                point_int conect[2];
-                                                int conection_lenght[]={0,0};//direction and distans to conection_lenght 0=no conection_lenght
-                                                int conection_waite=-1;
-                                                point_int conection_dir[2];
-                                                bool conection_cw[2];
-                                                ant_data step_info;
-                                                
-                                                for(int sides=0; sides<2; sides++){
-                                                    for(int d=0; d<2; d++){
-                                                        if(!conected[sides]){
-                                                            step_info.end=sides==0?o.start:o.end;
-                                                            bool clockwise= d==0;
-                                                            step_info.dir={0,0};
-                                                            int emty_count=0;
-                                                            for(int s=0;s<sercheLenthAnt; s++){
-                                                                if(step_info.end==oplistComp.end){
-                                                                        if(sides==1){
-                                                                            conection_waite=direction==1?s:-s;
-                                                                        }
-
-                                                                        conect[sides]=oplistComp.end;
-                                                                        conected[sides]=true;
-                                                                        conection_lenght[sides]=s;
-                                                                        conection_dir[sides].x=step_info.dir.x;
-                                                                        conection_dir[sides].y=step_info.dir.y;
-                                                                        conection_cw[sides]=clockwise;
-                                                                        break;
-
-                                                                }else if(step_info.end==oplistComp.start){
-                                                                        if(sides==0){
-                                                                            conection_waite+=direction==0?s:-s;
-                                                                        }
-                                                                        conect[sides]=oplistComp.start;
-                                                                        conected[sides]=true;
-                                                                        conection_lenght[sides]=s;
-                                                                        conection_dir[sides].x=step_info.dir.x;
-                                                                        conection_dir[sides].y=step_info.dir.y;
-                                                                        conection_cw[sides]=clockwise;
-                                                                        break;
-                                                                }
-                                                                step_info=ant_step(step_info.end,clockwise,step_info.dir,topMap);
-                                                                
-                                                                if(step_info.emty_cell){
-                                                                    emty_count+=1;
-                                                                    if(emty_count>maxAntGap){
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                
-                                                int sides=1;
-                                                if(!conected[0] && !conected[1]){
-                                                    if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
-                                                        oplist.erase(oplist.begin()+h);
-                                                        h-=1;
-                                                        break;
-                                                    }else{
-                                                        skip=true;
-                                                        break;
-                                                    }
-                                                    
-                                                }else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
-                                                    sides=0;
-                                                }
-                                                int c=0;
-                                                step_info.end=conect[sides];
-                                                step_info.dir=conection_dir[sides];
-                                                
-                                                while(intersect_line(oplistComp,o,topMap) && c<inSearchLenght){
-                                                    c+=1;
-                                                    step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir,topMap);
-                                                    if(sides==0){
-                                                        o.start.x=step_info.end.x;
-                                                        o.start.y=step_info.end.y;
-                                                    }else{
-                                                        o.end.x=step_info.end.x;
-                                                        o.end.y=step_info.end.y;
-                                                    }
-                                                }
-                                                
-                                                
-                                                point_int *op;
-                                                op=&step_info.end;
-                                                int cIndex=-1;
-                                                bool cheek=false;
-                                                int deb=0;
-                                                c=0;
-                                                while (!cheek && c<inSearchLenght){
-                                                    c++;
-                                                    cheek=true;
-                                                    
-                                                    if(check_for_opening(step_info.end,3)){
-                                                        step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir,topMap);
-                                                        if(sides==0){
-                                                            o.start.x=step_info.end.x;
-                                                            o.start.y=step_info.end.y;
-                                                        }else{
-                                                            o.end.x=step_info.end.x;
-                                                            o.end.y=step_info.end.y;
-                                                        }
-                                                        cheek=false;
-                                                    }
-                                                    
-                                                        
-                                                }
-                                                if(intersect_line(o,oplistComp,topMap)){
-                                                    if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
-                                                        oplist.erase(oplist.begin()+h);
-                                                        h-=1;
-                                                        break;
-                                                    }else{
-                                                        skip=true;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        for(int h=0; h<oplist.size() && !skip; h++){
-                                            opening oplistComp1=oplist[h];
-                                            if(intersect_line(o,oplistComp1,topMap) && oplistComp1.label!=-1 && o.label!=-1){
-                                                if(dist(o.start,o.end)<dist(oplistComp1.start,oplistComp1.end)){
-                                                    oplist.erase(oplist.begin()+h);
-                                                    h-=1;
-                                                    break;
-                                                }else{
-                                                    skip=true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        
-                                        if(direction==0){
-                                            p[k+1]=o.start;
-                                            p[k]=o.end;
-                                        }else{
-                                            p[k]=o.start;
-                                            p[k+1]=o.end;
-                                        }
-
-                                        if(skip)o.label=-1;
-                                        if(dist(o.start,o.end)<minGroupSize){
-                                            continue;
-                                        }
-                                        if(checkForWall(o, 2,topMap))o.label=-1;
-                                        if(o.label!=-1){
-                                            if(!cleanOpenings(o)){
-                                                o.label=-1;
-                                            }
-                                        }
-                                        oplist.push_back(o);
-                                        
-                                    } 
-                                    
                                 }
                             }
+
+                            if(newOpList.size()<2) continue;
+
+                            if(direction==0){
+                                newOpList[0].start_is_outside=false;
+                                newOpList[newOpList.size()-1].start_is_outside=true;
+                            }else{
+                                newOpList[0].start_is_outside=true;
+                                newOpList[newOpList.size()-1].start_is_outside=false;
+                            }
+                            
+                            int inSearchLenght=40;
+                            
+                            //for(int k=0;k<4;k++) rotate_points(topMap, &p[0],angle);
+                            newOpList=rotate_points(newOpList,4,rotation,mapSize);
+
+                            for(int k=0; k<newOpList.size();k++){
+                                opening o=newOpList[k];
+
+                                correctOpening(&o);
+                            
+                                if(!fitToCoridor(&o,inSearchLenght,topMap)) continue;
+
+                                double opLenght=dist(o.start,o.end);
+                                if(opLenght<minGroupSize){
+                                    continue;
+                                }
+                                
+                                for(int sids=0; sids<2;sids++){
+                                    ant_data step;
+                                    step.end=sids==0?o.start:o.end;
+                                    bool cheek=false;
+                                    int c=0;
+                                    while (!cheek && c<inSearchLenght){
+                                        c++;
+                                        cheek=true;
+                                        
+                                        if(check_for_opening(step.end,3)){
+                                            step=ant_step(step.end,sids==0,step.dir,topMap);
+                                            if(sids==0){
+                                                o.start=step.end;
+                                            }else{
+                                                o.end=step.end;
+                                            }
+                                            cheek=false;
+                                            break;
+                                        }
+                                        
+                                    }
+                                }
+                                bool skip=false;
+                            for(int h=0; h<oplist.size() && !skip && o.label!=-1; h++){
+                                    opening oplistComp=oplist[h];
+                                    if(intersect_line(o,oplistComp,topMap) && oplistComp.label!=-1 && o.label!=-1){
+
+                                        bool conected[]={false, false};
+                                        point_int conect[2];
+                                        int conection_lenght[]={0,0};//direction and distans to conection_lenght 0=no conection_lenght
+                                        int conection_waite=-1;
+                                        point_int conection_dir[2];
+                                        bool conection_cw[2];
+                                        ant_data step_info;
+                                        
+                                        for(int sides=0; sides<2; sides++){
+                                            for(int d=0; d<2; d++){
+                                                if(conected[sides]) continue;
+
+                                                step_info.end=sides==0?o.start:o.end;
+                                                bool clockwise= d==0;
+                                                step_info.dir={0,0};
+                                                int emty_count=0;
+                                                for(int s=0;s<sercheLenthAnt; s++){
+                                                    if(step_info.end==oplistComp.end){
+                                                            if(sides==1){
+                                                                conection_waite=direction==1?s:-s;
+                                                            }
+
+                                                            conect[sides]=oplistComp.end;
+                                                            conected[sides]=true;
+                                                            conection_lenght[sides]=s;
+                                                            conection_dir[sides].x=step_info.dir.x;
+                                                            conection_dir[sides].y=step_info.dir.y;
+                                                            conection_cw[sides]=clockwise;
+                                                            break;
+
+                                                    }else if(step_info.end==oplistComp.start){
+                                                            if(sides==0){
+                                                                conection_waite+=direction==0?s:-s;
+                                                            }
+                                                            conect[sides]=oplistComp.start;
+                                                            conected[sides]=true;
+                                                            conection_lenght[sides]=s;
+                                                            conection_dir[sides].x=step_info.dir.x;
+                                                            conection_dir[sides].y=step_info.dir.y;
+                                                            conection_cw[sides]=clockwise;
+                                                            break;
+                                                    }
+                                                    step_info=ant_step(step_info.end,clockwise,step_info.dir,topMap);
+                                                    
+                                                    if(step_info.emty_cell){
+                                                        emty_count+=1;
+                                                        if(emty_count>maxAntGap){
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        int sides=1;
+                                        if(!conected[0] && !conected[1]){
+                                            if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
+                                                oplist.erase(oplist.begin()+h);
+                                                h-=1;
+                                                break;
+                                            }else{
+                                                skip=true;
+                                                break;
+                                            }
+                                            
+                                        }else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
+                                            sides=0;
+                                        }
+                                        int c=0;
+                                        step_info.end=conect[sides];
+                                        step_info.dir=conection_dir[sides];
+                                        
+                                        while(intersect_line(oplistComp,o,topMap) && c<inSearchLenght){
+                                            c+=1;
+                                            step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir,topMap);
+                                            if(sides==0){
+                                                o.start.x=step_info.end.x;
+                                                o.start.y=step_info.end.y;
+                                            }else{
+                                                o.end.x=step_info.end.x;
+                                                o.end.y=step_info.end.y;
+                                            }
+                                        }
+                                        
+                                        
+                                        point_int *op;
+                                        op=&step_info.end;
+                                        int cIndex=-1;
+                                        bool cheek=false;
+                                        int deb=0;
+                                        c=0;
+                                        while (!cheek && c<inSearchLenght){
+                                            c++;
+                                            cheek=true;
+                                            
+                                            if(check_for_opening(step_info.end,3)){
+                                                step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir,topMap);
+                                                if(sides==0){
+                                                    o.start.x=step_info.end.x;
+                                                    o.start.y=step_info.end.y;
+                                                }else{
+                                                    o.end.x=step_info.end.x;
+                                                    o.end.y=step_info.end.y;
+                                                }
+                                                cheek=false;
+                                            }
+                                            
+                                                
+                                        }
+                                        if(intersect_line(o,oplistComp,topMap)){
+                                            if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
+                                                oplist.erase(oplist.begin()+h);
+                                                h-=1;
+                                                break;
+                                            }else{
+                                                skip=true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                for(int h=0; h<oplist.size() && !skip; h++){
+                                    opening oplistComp1=oplist[h];
+                                    if(intersect_line(o,oplistComp1,topMap) && oplistComp1.label!=-1 && o.label!=-1){
+                                        if(dist(o.start,o.end)<dist(oplistComp1.start,oplistComp1.end)){
+                                            oplist.erase(oplist.begin()+h);
+                                            h-=1;
+                                            break;
+                                        }else{
+                                            skip=true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if(skip)o.label=-1;
+                                if(dist(o.start,o.end)<minGroupSize){
+                                    continue;
+                                }
+                                if(checkForWall(o, 2,topMap))o.label=-1;
+                                if(o.label!=-1){
+                                    if(!cleanOpenings(o)){
+                                        o.label=-1;
+                                    }
+                                }
+                                oplist.push_back(o);
+                                
+                            } 
                         }
                     }
                 }
             }
         }  
-
     }
 
     void pubMap(){

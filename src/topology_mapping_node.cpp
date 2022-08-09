@@ -14,7 +14,7 @@ class TopologyMapping{
 
         //Map
         int **topMap;
-        Poligon_list poly_list;
+        Poligon_list *poly_list=NULL;
         poligon poly;
         
         bool rMap=false, rOpening=false;
@@ -31,6 +31,7 @@ class TopologyMapping{
         
 
     void loadMemory(){
+        oplist.reserve(200);
         //alocate for Maps
         topMap=new int*[mapSize];
         for(int i=0;i<mapSize;i++){
@@ -51,11 +52,15 @@ class TopologyMapping{
         while (ros::ok()){
             
             if(rMap && rOpening){
-                poly_list.clear();
+                if(poly_list!=NULL){
+                    delete poly_list;
+                }
+                
+                poly_list=new Poligon_list;
                 
                 if(oplist.size()>0){
                     creatPoligonList();
-                    if(poly_list.size()>0){
+                    if(poly_list->size()>0){
                         creatPathPoligons();
                     }
                 
@@ -67,10 +72,10 @@ class TopologyMapping{
                         }
                     }
                     
-                    for(int b=0; b<poly_list.poly.size(); b++){
-                        if(poly_list.poly[b].inactiv){
-                            poly_list.poly.erase(poly_list.poly.begin()+b);
-                            poly_list.label.erase(poly_list.label.begin()+b);
+                    for(int b=0; b<poly_list->poly.size(); b++){
+                        if(poly_list->poly[b].inactiv){
+                            poly_list->poly.erase(poly_list->poly.begin()+b);
+                            poly_list->label.erase(poly_list->label.begin()+b);
                             b-=1;
                         }
                     }
@@ -118,9 +123,9 @@ class TopologyMapping{
         if(opIndex>=0){
             if(oplist[opIndex].parent_poligon>=0){
                 int pIndex=oplist[opIndex].parent_poligon;
-                for(int i=0; i<poly_list.poly[pIndex].sidesIndex.size();i++){
-                    oplist[poly_list.poly[pIndex].sidesIndex[i]].parent_poligon=-1;
-                    poly_list.poly[pIndex].inactiv=true;
+                for(int i=0; i<poly_list->poly[pIndex].sidesIndex.size();i++){
+                    oplist[poly_list->poly[pIndex].sidesIndex[i]].parent_poligon=-1;
+                    poly_list->poly[pIndex].inactiv=true;
                 }
             }
             if(remove_openign){
@@ -260,8 +265,8 @@ class TopologyMapping{
                                     break;
                                 }else{
                                     ROS_INFO("found complet");
-                                    
                                     cheek=true;
+                                    if(poly.sidesIndex.size()==1 && s<dist(oplist[i].start,oplist[i].end)*2) break;
                                     complet=true;
                                     break;
                                 }
@@ -282,13 +287,12 @@ class TopologyMapping{
                             label=20;
                         }else{
                             label=30;
-                            ROS_INFO("%li",poly.sidesIndex.size());
                         }
 
                         for(int p=0;p<poly.sidesIndex.size();p++){
-                            oplist[poly.sidesIndex[p]].parent_poligon=poly_list.poly.size();
+                            oplist[poly.sidesIndex[p]].parent_poligon=poly_list->poly.size();
                         }
-                        poly_list.add(poly,label);
+                        poly_list->add(poly,label);
                     }else if(cheek){
                         for(int p=0;p<poly.sidesIndex.size();p++){
                             oplist[poly.sidesIndex[p]].parent_poligon=-1;
@@ -301,7 +305,7 @@ class TopologyMapping{
 
     void creatPathPoligons(){
         for(int i=0; i<oplist.size(); i++){
-            if(oplist[i].conected_to_path==-1 && oplist[i].parent_poligon>=0 && !poly_list.poly[oplist[i].parent_poligon].inactiv){
+            if(oplist[i].conected_to_path==-1 && oplist[i].parent_poligon>=0 && !poly_list->poly[oplist[i].parent_poligon].inactiv){
                 
                 poly.poligon_points.clear();
                 poly.sidesIndex.clear();
@@ -313,13 +317,15 @@ class TopologyMapping{
                 bool check=false;
                 bool complet=false;
                 int opIndex, firstOpIndex=-2, pathType=0;
+                opening currentOpening=oplist[i];
+                int countExtraPaths=0;
                 for(int sids=0; sids<2 && !check; sids++){
                     int empty_cell_count=0;
                     bool cw=sids==0;
                     if(cw){
-                        step_info.end=oplist[i].end; 
+                        step_info.end=currentOpening.end; 
                     }else{
-                        step_info.end=oplist[i].start;
+                        step_info.end=currentOpening.start;
                     }
                     point_int firstPos=step_info.end;
                     poly.add_point(step_info.end,cw);
@@ -365,11 +371,23 @@ class TopologyMapping{
                                         
                                         ROS_INFO("warning, path wiht more then two coneciton");
                                         pathType=4;
+                                        
+                                        currentOpening=oplist[opIndex];
+                                        if(countExtraPaths>4){
+                                            complet=true;
+                                        }else{
+                                            countExtraPaths+=1;
+                                            sids-=1;
+                                        }
+
                                     }else if(pathType==0){
                                         pathType=3;
+                                        complet=true;
+                                    }else{
+                                        complet=true;
                                     }
 
-                                    complet=true;
+                                    
                                         
                                     break;
                                 }
@@ -405,9 +423,9 @@ class TopologyMapping{
                     }
 
                     for(int p=0;p<poly.sidesIndex.size();p++){
-                        oplist[poly.sidesIndex[p]].conected_to_path=poly_list.poly.size();
+                        oplist[poly.sidesIndex[p]].conected_to_path=poly_list->poly.size();
                     }
-                    poly_list.add(poly,label);
+                    poly_list->add(poly,label);
                 }else if(check){
                     for(int p=0;p<poly.sidesIndex.size();p++){
                         oplist[poly.sidesIndex[p]].conected_to_path=-1;
@@ -465,12 +483,12 @@ class TopologyMapping{
         jsk_recognition_msgs::PolygonArray pubPolyArray;
         pubPolyArray.header.frame_id = "map";
         pubPolyArray.header.stamp = ros::Time::now();
-        pubPolyArray.polygons.resize(poly_list.size());
-        pubPolyArray.labels.resize(poly_list.size());
-        pubPolyArray.likelihood.resize(poly_list.size());
-        for(int i=0; i<poly_list.size(); i++){
-            pubPolyArray.polygons[i]=poly_list.get_polygon(i,mapSize,resolution);
-            pubPolyArray.labels[i]=poly_list.label[i];
+        pubPolyArray.polygons.resize(poly_list->size());
+        pubPolyArray.labels.resize(poly_list->size());
+        pubPolyArray.likelihood.resize(poly_list->size());
+        for(int i=0; i<poly_list->size(); i++){
+            pubPolyArray.polygons[i]=poly_list->get_polygon(i,mapSize,resolution);
+            pubPolyArray.labels[i]=poly_list->label[i];
             pubPolyArray.likelihood[i]=1;
         }
         pubTopoPoly.publish(pubPolyArray);
