@@ -17,10 +17,12 @@ class TopologyMapping{
         Poligon_list *poly_list=NULL;
         poligon poly;
         
+        //Global var.
         bool rMap=false, rOpening=false;
 
 
     public:
+        //Setup
         TopologyMapping(){
             subOccupancyMap= nh.subscribe("/topology_map_filterd",1,&TopologyMapping::updateMap, this);
             subOpeningList= nh.subscribe("/opening_list_int",1,&TopologyMapping::updateOplist, this);
@@ -29,7 +31,7 @@ class TopologyMapping{
             loadMemory();
         }
         
-
+    //Load all maps into the memory
     void loadMemory(){
         oplist.reserve(200);
         //alocate for Maps
@@ -50,28 +52,29 @@ class TopologyMapping{
         ros::Rate rate(100); // Hz
         
         while (ros::ok()){
-            
+            //waiting to receive new topic
             if(rMap && rOpening){
+                //Clear poly_list
                 if(poly_list!=NULL){
                     delete poly_list;
                 }
-                
                 poly_list=new Poligon_list;
                 
                 if(oplist.size()>0){
                     creatPoligonList();
+
                     if(poly_list->size()>0){
                         creatPathPoligons();
                     }
                 
-                    
+                    //remove unused openings
                     for(int b=0; b<oplist.size(); b++){
                         if(oplist[b].parent_poligon<0 || oplist[b].label<0){
                             oplist.erase(oplist.begin()+b);
                             b-=1;
                         }
                     }
-                    
+                    //remove polygons tagged for removal (polygons with inactive==true)
                     for(int b=0; b<poly_list->poly.size(); b++){
                         if(poly_list->poly[b].inactiv){
                             poly_list->poly.erase(poly_list->poly.begin()+b);
@@ -91,6 +94,7 @@ class TopologyMapping{
         }
     }
 
+    //Copy openings from messages to opList.
     void updateOplist(const topology_mapping::opening_list& opMsg){
         oplist.resize(opMsg.list.size());
         for(int i=0; i<opMsg.list.size(); i++){
@@ -105,6 +109,7 @@ class TopologyMapping{
         rOpening=true;
     }
 
+    //Get new filtered occupancy map and move its value into Map.
     void updateMap(const nav_msgs::OccupancyGrid& mapMsg){
         int width=mapMsg.info.width;
         int height=mapMsg.info.height;
@@ -118,7 +123,7 @@ class TopologyMapping{
         rMap=true;
     }
 
-
+    //Remove connection of all openings connected to the same poligon as opening with index Index, poligon is then tagged for removal.
     void remove_parent_poligon(int opIndex, bool remove_openign=false){
         if(opIndex>=0){
             if(oplist[opIndex].parent_poligon>=0){
@@ -134,16 +139,19 @@ class TopologyMapping{
         }
     }
 
+    //Connect all openings to create a list of polygons representing the intersections.
     void creatPoligonList(){
         for(int i=0; i<oplist.size(); i++){
             if(oplist[i].parent_poligon==-1 && oplist[i].label==1){
+                //set init. val. for all var:s needed.
+                //poly is a temp variable holding the information that will be appended to poligon_list 
                 bool cw=true;
                 poly.poligon_points.clear();
                 poly.sidesIndex.clear();
                 poly.inactiv=false;
                 poly.label=1;
                 poly.sidesIndex.push_back(i);
-                oplist[i].parent_poligon=-2;
+                oplist[i].parent_poligon=-2;//A temporary value used to indicate that the polygon is connected.
                 ant_data step_info;      
                 bool cheek=false, complet=false;
                 int firstIndex=i;
@@ -153,6 +161,7 @@ class TopologyMapping{
                 int wait=-1;
                 int totalSlenght=0;
                 int opIndex;
+
                 while(!cheek){
                     int empty_cell_count=0;
                     if(cw){
@@ -165,7 +174,8 @@ class TopologyMapping{
                     poly_points.clear();
                     step_info.dir={0,0};
                     for(int s=0; s<=sercheLenthAntConect; s++){
-                         
+                        
+                        //don't save all point to save on resources
                         if(rezCounter>=poligonRez){
                             rezCounter=0;
                             poly_points.push_back(step_info.end);
@@ -182,25 +192,27 @@ class TopologyMapping{
                                 if(cw){
                                     wait=s;
 
-                                    ROS_INFO("found no conecttion sershing other dir");
+                                    ROS_INFO("found no connection searching other direction ");
                                     lastIndex=targetIndex;
                                     targetIndex=firstIndex;
                                     cw=false;
                                     break;
                                 }else{
                                     if(poly.sidesIndex.size()>1){
-                                        ROS_INFO("creat new opening");
+                                        ROS_INFO("Create new opening");
                                         //creat mising openign
                                         opening newOp;
                                         newOp.start=oplist[targetIndex].end;
                                         newOp.end=oplist[lastIndex].start;
+                                        //fitt new opening to coridor get s1 and s2 that is the points that the opening was moved 
                                         vector<point_int> s1, s2;
-                                        fitToCoridor(&newOp,40,topMap,true,true,&s1,&s2);
+                                        fitToCorridor(&newOp,40,topMap,true,true,&s1,&s2);
                                         newOp.label=2;
                                         newOp.parent_poligon=-2;
                                         poly.sidesIndex.push_back(oplist.size());
                                         int newIndex=oplist.size();
                                         oplist.push_back(newOp);
+                                        //check if new opening is good 
                                         if(!checkForWall(newOp,2,topMap) && dist(newOp.start,newOp.end)>=minGroupSize){
                                             for(int k=0; k<s2.size();k+=poligonRez){
                                                 poly.add_point(s2[k],cw);
@@ -213,9 +225,8 @@ class TopologyMapping{
                                     
                                             complet=true;
 
-                                        }else{//bad new opening, remove conflicting opening insted
+                                        }else{//bad new opening, remove conflicting opening instead
                                             oplist[newIndex].parent_poligon=-1;
-                                            //oplist[newIndex].label=-1;
                                             if(opIndex>=0){
                                                 remove_parent_poligon(opIndex,true);
                                                 i-=1;
@@ -223,35 +234,37 @@ class TopologyMapping{
                                         }
                                     }
                                     
-                                    ROS_INFO("found no conection don serching");
+                                    ROS_INFO("Found no connection on searching");
                                     cheek=true;
                                     break;
                                 }
                         }
                         
                         opIndex=check_and_get_opening(step_info.end,cw?2:1,true);
+
                         //Good conection
-                        
                         if(opIndex!=-1){
                                 poly_points.push_back(step_info.end);
                                 for(int k=0;k<poly_points.size(); k++){
                                     poly.add_point(poly_points[k],cw);
                                     
                                 }
+
                                 totalSlenght+=s;
-                                if(oplist[opIndex].parent_poligon!=-1 &&oplist[opIndex].parent_poligon!=-2){
+                                //If an opening filip has caused a new connection possible with a polygon that have created a new opening remov that poligon
+                                if(oplist[opIndex].parent_poligon!=-1 && oplist[opIndex].parent_poligon!=-2){
                                     remove_parent_poligon(opIndex);
                                 }
                                 if(oplist[opIndex].parent_poligon==-1){
-                                    ROS_INFO("found conection");
+                                    ROS_INFO("Found connection");
                                     oplist[opIndex].parent_poligon=-2;
                                     poly.sidesIndex.push_back(opIndex);
                                     targetIndex=opIndex;
                                     break;
-                                }else if(poly.sidesIndex.size()==2 && totalSlenght<=minimumSercheLenght){//to smal conection fliping openings
-                                    ROS_INFO("small conection");
+                                }else if(poly.sidesIndex.size()==2 && totalSlenght<=minimumSercheLenght){//Too small connection, flipping the openings
+                                    ROS_INFO("Small connection");
                                     oplist[targetIndex].parent_poligon=-1;
-                                    if(oplist[i].fliped){//remove opening if flipt two times
+                                    if(oplist[i].fliped){//remove opening if flipped two times
                                         oplist[i].label=-1;
                                     }else{
                                         oplist[i].parent_poligon=-1;
@@ -264,7 +277,7 @@ class TopologyMapping{
                                     cheek=true;
                                     break;
                                 }else{
-                                    ROS_INFO("found complet");
+                                    ROS_INFO("Found complete polygon");
                                     cheek=true;
                                     if(poly.sidesIndex.size()==1 && s<dist(oplist[i].start,oplist[i].end)*2) break;
                                     complet=true;
@@ -288,7 +301,7 @@ class TopologyMapping{
                         }else{
                             label=30;
                         }
-
+                        //set openings parent_poligon to the correct index 
                         for(int p=0;p<poly.sidesIndex.size();p++){
                             oplist[poly.sidesIndex[p]].parent_poligon=poly_list->poly.size();
                         }
@@ -303,22 +316,25 @@ class TopologyMapping{
         }
     }
 
+    //Create path polygon between intersection
     void creatPathPoligons(){
         for(int i=0; i<oplist.size(); i++){
             if(oplist[i].conected_to_path==-1 && oplist[i].parent_poligon>=0 && !poly_list->poly[oplist[i].parent_poligon].inactiv){
-                
+                //set init. val. for all var:s needed.
+                //poly is a temp variable holding the information that will be appended to poligon_list 
                 poly.poligon_points.clear();
                 poly.sidesIndex.clear();
                 poly.inactiv=false;
                 poly.label=1;
                 poly.sidesIndex.push_back(i);
-                oplist[i].conected_to_path=-2;
+                oplist[i].conected_to_path=-2;//A temporary value used to indicate that the polygon is connected.
                 ant_data step_info;      
                 bool check=false;
                 bool complet=false;
                 int opIndex, firstOpIndex=-2, pathType=0;
                 opening currentOpening=oplist[i];
                 int countExtraPaths=0;
+
                 for(int sids=0; sids<2 && !check; sids++){
                     int empty_cell_count=0;
                     bool cw=sids==0;
@@ -333,7 +349,7 @@ class TopologyMapping{
                     
                     step_info.dir={0,0};
                     for(int s=0; s<=sercheLenthAntConect; s++){
-                         
+                        //don't save all point to save on resources
                         if(rezCounter>=poligonRezPath){
                             rezCounter=0;
                             poly.add_point(step_info.end,cw);
@@ -349,7 +365,7 @@ class TopologyMapping{
 
                         opIndex=check_and_get_opening(step_info.end,cw?1:2);
                         
-                        // found conection
+                        //Found connection
                         if(opIndex!=-1 || empty_cell_count>maxAntGap || s==sercheLenthAntConect){
                             if(oplist[opIndex].parent_poligon>=0){
                                 oplist[opIndex].conected_to_path=-2;
@@ -358,26 +374,29 @@ class TopologyMapping{
 
                                 if(cw){
                                     firstOpIndex=opIndex;
-                                    if(opIndex==i){
+                                    if(opIndex==i){//opening found it self, no need to search other side 
                                         check=true;
                                         complet=true;
                                         pathType=1;
-                                    }else if(opIndex==-1){
+                                    }else if(opIndex==-1){//opening led to an unexplored area
                                         pathType=2;
                                     }
                                     break;
                                 }else{
                                     if(opIndex!=firstOpIndex){
                                         
-                                        ROS_INFO("warning, path wiht more then two coneciton");
+                                        ROS_INFO("Warning, path with more than two connection!");
                                         pathType=4;
-                                        
-                                        currentOpening=oplist[opIndex];
-                                        if(countExtraPaths>4){
-                                            complet=true;
+                                        if(opIndex!=-1){//loop is rerun to connect additional openings
+                                            currentOpening=oplist[opIndex];
+                                            if(countExtraPaths>4){
+                                                complet=true;
+                                            }else{
+                                                countExtraPaths+=1;
+                                                sids-=1;
+                                            }
                                         }else{
-                                            countExtraPaths+=1;
-                                            sids-=1;
+                                            complet=true;
                                         }
 
                                     }else if(pathType==0){
@@ -387,8 +406,6 @@ class TopologyMapping{
                                         complet=true;
                                     }
 
-                                    
-                                        
                                     break;
                                 }
                             }
@@ -402,19 +419,19 @@ class TopologyMapping{
                     int label=0;
                     switch (pathType)
                     {
-                    case 1:
+                    case 1://room or dead end 
                         label=41;
                         break;
 
-                    case 2:
+                    case 2://path leading to an unexplored area
                         label=52;
                         break;
                     
-                    case 3:
+                    case 3://normal path
                         label=64;
                         break;
 
-                    case 4:
+                    case 4://path connected to multiple intersection
                         label=76;
                         break;
 
@@ -435,8 +452,8 @@ class TopologyMapping{
         }
     }
 
+    //Function to publish all topics. 
     void pubMap(){
-        
         jsk_recognition_msgs::PolygonArray pubPolyArray_old;
         pubPolyArray_old.header.frame_id = "map";
         pubPolyArray_old.header.stamp = ros::Time::now();
@@ -445,7 +462,7 @@ class TopologyMapping{
         pubPolyArray_old.likelihood.resize(oplist.size());
         int halfMap=mapSize/2;
         for(int i=0; i<oplist.size(); i++){
-            
+            //convert the line of an opening to a rectangular polygon
             opening op=oplist[i];
             point nNorm={-(double)(op.end.y-op.start.y),
                             (double)(op.end.x-op.start.x)};
@@ -498,11 +515,11 @@ class TopologyMapping{
 
 int main(int argc, char** argv){
 
-    ros::init(argc, argv, "topology_gap_analysis");
+    ros::init(argc, argv, "topology_mapping");
     
     TopologyMapping topMapping;
 
-    ROS_INFO("Topology Gap Analysis Started.");
+    ROS_INFO("Topology Mapping Started.");
     
     topMapping.spin();
     

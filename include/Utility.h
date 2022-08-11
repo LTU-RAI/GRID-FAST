@@ -15,8 +15,8 @@ int scanSize=mapSize;
 int minGroupSize=3;
 int minCoridorSize=1;
 int cGroupeSize=0;
-int cfilter=0;
 int cfilterSize=15;
+int cfilterWallSize=0;
 int groupeNumber=60;
 int numberOfDir=6;
 int numberOfDirFilter=4;
@@ -33,10 +33,6 @@ int maxAntGap=4;
 int poligonRez=4;
 int poligonRezPath=10;
 int minimumSercheLenght=5;
-
-double minimumAreaTest=0.3;
-
-
 
 struct scanGroup{
     int start;
@@ -168,6 +164,7 @@ struct ant_data{
 
 vector<opening> oplist;
 
+//suport function for ant_step rotates the dir 
 point_int rotate_dir(point_int dir, bool cw){
     point_int newDir[]={{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0}, {0,0}};
     for(int i=0; i<8; i++){
@@ -181,6 +178,7 @@ point_int rotate_dir(point_int dir, bool cw){
     return newDir[8];
 }
 
+//Function to take one step using an ant algorithm 
 ant_data ant_step(point_int start, bool clockwise, point_int direction, int** map){
     int newDirx, newDiry;
     ant_data step;
@@ -210,7 +208,7 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
         step.dir=rotate_dir(step.dir,!clockwise);
     }
     point_int checkDir=direction;
-    int checkLenght=1;//(int)(std::round(minGroupSize/2));
+    int checkLenght=1;
 
     for(int d=0;d<8;d++){
         bool check=true;
@@ -222,7 +220,6 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
             
         }
         if(check){
-            //scanMapOutHolder[step.end.x][step.end.y]=100;
             step.end.x=start.x+step.dir.x;
             step.end.y=start.y+step.dir.y;
             step.emty_cell=false;
@@ -263,11 +260,12 @@ bool checkForWall(opening o,int maximumWallCount, int** map){
     }
 }
 
+//suport function for intersect_line
 bool ccw(point A,point B,point C){
     return (C.y-A.y) * (B.x-A.x) > (B.y-A.y) * (C.x-A.x);
 }
 
-// Return true if line segments o1 and o2 intersect
+//Return true if line segments o1 and o2 intersect.
 bool intersect_line(opening o1,opening o2, int** map){
     ant_data step;
     for(int d=0; d<2; d++){
@@ -304,14 +302,14 @@ bool intersect_line(opening o1,opening o2, int** map){
     return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D);
 }
 
-//checks and get index to first found opening at a point, typ: 1 check for start, 2 check for end, 3 check for both.
-int check_and_get_opening(point_int position, int typ, bool only_standard_opening=false){
+//checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
+int check_and_get_opening(point_int position, int type, bool only_standard_opening=false){
     int oIndex=-1;
     
     for(int i=0; i<oplist.size(); i++){
         if(oplist[i].label!=-1 && (!only_standard_opening || oplist[i].label==1) &&
-            (typ==1 && oplist[i].start==position || typ==2 && oplist[i].end==position ||
-            typ==3 && (oplist[i].start==position || oplist[i].end==position))){
+            (type==1 && oplist[i].start==position || type==2 && oplist[i].end==position ||
+            type==3 && (oplist[i].start==position || oplist[i].end==position))){
                 oIndex=i;
         }
     }
@@ -319,16 +317,17 @@ int check_and_get_opening(point_int position, int typ, bool only_standard_openin
     return oIndex;
 }
 
-//checks if a point is overlaping an opening start and end, typ: 1 check for start, 2 check for end, 3 check for both.
-bool check_for_opening(point_int position, int typ){
+//checks if a point is overlaping an opening start and end, type: 1 check for start, 2 check for end, 3 check for both.
+bool check_for_opening(point_int position, int type){
     bool testCheck=true;
     
-    if(check_and_get_opening(position, typ)==-1) testCheck=false;
+    if(check_and_get_opening(position, type)==-1) testCheck=false;
 
     return testCheck;
 }
 
-bool fitToCoridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
+//Moves the start and end points of op to minimize its length
+bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
     vector<point_int> s1, s2;
     ant_data search_step;
     int number_of_emty=0;
