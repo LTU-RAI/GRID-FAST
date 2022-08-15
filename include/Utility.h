@@ -164,6 +164,35 @@ struct ant_data{
 
 vector<opening> oplist;
 
+//rotate all points in op list around the maps center
+vector<opening> rotate_points(vector<opening> op, const double rotation){
+    vector<opening> newOp;
+    newOp.resize(op.size());
+    float cosA=cos(rotation);
+    float sinA=sin(rotation);
+    int halfMapSize=mapSize/2;
+    for(int i=0; i<op.size();i++){
+        for(int sids=0; sids<2;sids++){
+            point_int p=op[i].start;
+            if(sids==1){
+                p=op[i].end;
+            }
+            //using a 2d rotation matrix to rotate points
+            int newX=int(std::round(((p.x-halfMapSize) *cosA-(p.y-halfMapSize)*sinA)))+halfMapSize;
+            int newY=int(std::round(((p.x-halfMapSize) *sinA+(p.y-halfMapSize)*cosA)))+halfMapSize;
+            p.x=newX;
+            p.y=newY;
+            if(sids==0){
+                newOp[i].start=p;
+            }else{
+                newOp[i].end=p;
+            }
+        }
+        newOp[i].start_is_outside=op[i].start_is_outside;
+    }
+    return newOp;        
+}
+
 //suport function for ant_step rotates the dir 
 point_int rotate_dir(point_int dir, bool cw){
     point_int newDir[]={{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0}, {0,0}};
@@ -267,39 +296,47 @@ bool ccw(point A,point B,point C){
 
 //Return true if line segments o1 and o2 intersect.
 bool intersect_line(opening o1,opening o2, int** map){
-    ant_data step;
-    for(int d=0; d<2; d++){
-        bool c1=false, c2=false;
-        for(int side=0; side<2; side++){
-            step.dir={0,0};
-            step.end=side==0?o1.start:o1.end;
-            for(int s=0; s<6;s++){
-                //ROS_INFO("%i, %i",step.end.x,step.end.y);
-                step=ant_step(step.end,d==0,step.dir,map);
-                if(step.end==o2.start || step.end==o2.end){
-                    if(side==0){
-                        c1=true;
-                    }else{
-                        c2=true;
-                    }
-                    break;
-                }
-            }
-        }
-        if(c1 && c2){
-            return true;
-        }
-    }
-    
-    double l=1.2;
+    double l=.6;
     double l1 = dist(o1.start,o1.end);
     double l2 = dist(o2.start,o2.end);
     point n1={((o1.end.x-o1.start.x)/l1)*l, ((o1.end.y-o1.start.y)/l1)*l};
     point n2={((o2.end.x-o2.start.x)/l2)*l, ((o2.end.y-o2.start.y)/l2)*l};
+    point p1[]={{(double)o1.start.x-n1.x,(double)o1.start.y-n1.y},{(double)o1.end.x+n1.x,(double)o1.end.y+n1.y}};
+    point p2[]={{(double)o2.start.x-n2.x,(double)o2.start.y-n2.y},{(double)o2.end.x+n2.x,(double)o2.end.y+n2.y}};
+    point currentO[2], testingO[2];
+    for(int side=0;side<2;side++){
+        if(side==0){
+            currentO[0]=p1[0];
+            currentO[1]=p1[1];
+            testingO[0]=p2[0];
+            testingO[1]=p2[1];
+        }else{
+            currentO[0]=p2[0];
+            currentO[1]=p2[1];
+            testingO[0]=p1[0];
+            testingO[1]=p1[1];
+        }
 
-    point A={o1.start.x-n1.x,o1.start.y-n1.y}, B={o1.end.x+n1.x,o1.end.y+n1.y};
-    point C={o2.start.x-n2.x,o2.start.y-n2.y}, D={o2.end.x+n2.x,o2.end.y+n2.y}; 
-    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D);
+        double ang=atan2(currentO[1].y-currentO[0].y,currentO[1].x-currentO[0].x);
+        point oTest[]={testingO[0],testingO[1]};
+        point oTest3[]={testingO[0],testingO[1]};
+        double cosA=cos(-ang);
+        double sinA=sin(-ang);
+        for(int i=0; i<2;i++){
+            //using a 2d rotation matrix to rotate points
+            double newX=((oTest[i].x-currentO[0].x) *cosA-(oTest[i].y-currentO[0].y)*sinA);
+            double newY=((oTest[i].x-currentO[0].x) *sinA+(oTest[i].y-currentO[0].y)*cosA);
+            oTest[i].x=newX;
+            oTest[i].y=newY;
+        }
+        
+        if(oTest[0].y<0 && oTest[1].y<0 || oTest[0].y>0 && oTest[1].y>0){ return false;}
+        else{
+            //ROS_INFO("%f, %f, %f, %f, %f",ang,oTest3[0].x,oTest3[0].y,oTest3[1].x,oTest3[1].y);
+            //ROS_INFO("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f",ang,oTest[0].x,oTest[0].y,oTest[1].x,oTest[1].y,currentO[0].x,currentO[0].y,currentO[1].x,currentO[1].y,testingO[0].x,testingO[0].y,testingO[1].x,testingO[1].y);
+             }
+    }
+    return true;
 }
 
 //checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.

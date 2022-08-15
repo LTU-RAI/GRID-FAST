@@ -115,7 +115,7 @@ class TopologyMapping{
                 }
                 
             }
-            
+
             pubMap();
 
             ros::spinOnce();
@@ -162,35 +162,6 @@ class TopologyMapping{
     void setMapTransform(int **map, const int x,const int y, const int angIndex, int value){
         if(mapTransform[angIndex][x][y].x==-1) return;
         map[mapTransform[angIndex][x][y].x][mapTransform[angIndex][x][y].y]=value;
-    }
-
-    //rotate all points in op list around the maps center
-    vector<opening> rotate_points(vector<opening> op,const int size, const double rotation, const int sizeMap){
-        vector<opening> newOp;
-        newOp.resize(op.size());
-        float cosA=cos(rotation);
-        float sinA=sin(rotation);
-        int halfMapSize=sizeMap/2;
-        for(int i=0; i<op.size();i++){
-            for(int sids=0; sids<2;sids++){
-                point_int p=op[i].start;
-                if(sids==1){
-                    p=op[i].end;
-                }
-                //using a 2d rotation matrix to rotate points
-                int newX=int(std::round(((p.x-halfMapSize) *cosA-(p.y-halfMapSize)*sinA)))+halfMapSize;
-                int newY=int(std::round(((p.x-halfMapSize) *sinA+(p.y-halfMapSize)*cosA)))+halfMapSize;
-                p.x=newX;
-                p.y=newY;
-                if(sids==0){
-                    newOp[i].start=p;
-                }else{
-                    newOp[i].end=p;
-                }
-            }
-            newOp[i].start_is_outside=op[i].start_is_outside;
-        }
-        return newOp;        
     }
 
     // initialization of map message
@@ -520,7 +491,7 @@ class TopologyMapping{
                         
                         int inSearchLenght=40;
                         //rotate point back to original rotation
-                        newOpList=rotate_points(newOpList,4,rotation,mapSize);
+                        newOpList=rotate_points(newOpList,rotation);
 
                         for(int k=0; k<newOpList.size();k++){
                             opening o=newOpList[k];
