@@ -363,7 +363,7 @@ bool check_for_opening(point_int position, int type){
     return testCheck;
 }
 
-//Moves the start and end points of op to minimize its length
+//Moves the start and end points of op to minimize its length, return true if op was successfully moved.
 bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
     vector<point_int> s1, s2;
     ant_data search_step;
