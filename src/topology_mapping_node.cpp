@@ -287,7 +287,9 @@ class TopologyMapping{
 
                         if(step_info.emty_cell){
                             empty_cell_count+=1;
-                        }  
+                        }else if(empty_cell_count>0){
+                            empty_cell_count-=1;
+                        }
                     }
                     if(complet){
                         int label=0;
@@ -412,7 +414,9 @@ class TopologyMapping{
                         }
                         if(step_info.emty_cell){
                             empty_cell_count+=1;
-                        }  
+                        }else if(empty_cell_count>0){
+                            empty_cell_count-=1;
+                        }
                     }
                 }
                 if(complet){
@@ -460,7 +464,8 @@ class TopologyMapping{
         pubPolyArray_old.polygons.resize(oplist.size());
         pubPolyArray_old.labels.resize(oplist.size());
         pubPolyArray_old.likelihood.resize(oplist.size());
-        int halfMap=mapSize/2;
+        int MapOrigenX=-mapOffsetX/resolution;
+        int MapOrigenY=-mapOffsetY/resolution;
         for(int i=0; i<oplist.size(); i++){
             //convert the line of an opening to a rectangular polygon
             opening op=oplist[i];
@@ -475,21 +480,21 @@ class TopologyMapping{
             p.polygon.points.resize(4);
             topMap[op.start.x][op.start.y]=100;
             topMap[op.end.x][op.end.y]=50;
-            p.polygon.points[0].x=(op.start.x-halfMap)*resolution;
-            p.polygon.points[0].y=(op.start.y-halfMap)*resolution;
-            p.polygon.points[0].z=10.2;
+            p.polygon.points[0].x=(op.start.x-MapOrigenX)*resolution;
+            p.polygon.points[0].y=(op.start.y-MapOrigenY)*resolution;
+            p.polygon.points[0].z=0.2;
 
-            p.polygon.points[1].x=(op.end.x-halfMap)*resolution;
-            p.polygon.points[1].y=(op.end.y-halfMap)*resolution;
-            p.polygon.points[1].z=10.2;
+            p.polygon.points[1].x=(op.end.x-MapOrigenX)*resolution;
+            p.polygon.points[1].y=(op.end.y-MapOrigenY)*resolution;
+            p.polygon.points[1].z=0.2;
             
-            p.polygon.points[2].x=(op.end.x-halfMap)*resolution+nNorm.x;
-            p.polygon.points[2].y=(op.end.y-halfMap)*resolution+nNorm.y;
-            p.polygon.points[2].z=10.2;
+            p.polygon.points[2].x=(op.end.x-MapOrigenX)*resolution+nNorm.x;
+            p.polygon.points[2].y=(op.end.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[2].z=0.2;
 
-            p.polygon.points[3].x=(op.start.x-halfMap)*resolution+nNorm.x;
-            p.polygon.points[3].y=(op.start.y-halfMap)*resolution+nNorm.y;
-            p.polygon.points[3].z=10.2;
+            p.polygon.points[3].x=(op.start.x-MapOrigenX)*resolution+nNorm.x;
+            p.polygon.points[3].y=(op.start.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[3].z=0.2;
             
             pubPolyArray_old.polygons[i]=p;
             pubPolyArray_old.labels[i]=op.label;

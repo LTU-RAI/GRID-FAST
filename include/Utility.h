@@ -8,18 +8,23 @@
 using namespace std;
 
 //Map setings
-int mapSize=1000;
+int mapSize=1824;
 float resolution=0.2;
+float mapOffsetX=-150;//-(mapSize*resolution)/2;
+float mapOffsetY=-100;//-(mapSize*resolution)/2;
+float mapHight=0;
 //scan setings
 int scanSize=mapSize;
 int minGroupSize=3;
-int minCoridorSize=1;
+int minCoridorSize=8;
 int cGroupeSize=0;
-int cfilterSize=15;
+int cfilterSize=8;
 int cfilterWallSize=0;
+int objectFilterMaxStep=60;
+int cfilterWallFromWallSize=0;
 int groupeNumber=60;
-int numberOfDir=6;
-int numberOfDirFilter=4;
+int numberOfDir=8;
+int numberOfDirFilter=numberOfDir;
 int maxGapDistans=5;
 int extendDevider=4;
 int searchLenght=8;
@@ -29,7 +34,7 @@ int searchLenghtClean=100;
 int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
-int maxAntGap=4;
+int maxAntGap=8;
 int poligonRez=4;
 int poligonRezPath=10;
 int minimumSercheLenght=5;
@@ -127,8 +132,9 @@ struct Poligon_list{
         return poly.size();
     }
 
-    geometry_msgs::PolygonStamped get_polygon(int index, int sizeMap, float resolution, double z=10.1){
-        int halfMapSize=sizeMap/2;
+    geometry_msgs::PolygonStamped get_polygon(int index, int sizeMap, float resolution, double z=0.1){
+        int MapOrigenX=-mapOffsetX/resolution;
+        int MapOrigenY=-mapOffsetY/resolution;
         vector<point_int> points;
         for(int i=0; i<poly[index].poligon_points.size(); i++){
             bool test=true;
@@ -147,8 +153,8 @@ struct Poligon_list{
         newPoly.polygon.points.resize(points.size());
 
         for(int n=0; n<points.size(); n++){
-            newPoly.polygon.points[n].x=(points[n].x-halfMapSize)*resolution;
-            newPoly.polygon.points[n].y=(points[n].y-halfMapSize)*resolution;
+            newPoly.polygon.points[n].x=(points[n].x-MapOrigenX)*resolution;
+            newPoly.polygon.points[n].y=(points[n].y-MapOrigenY)*resolution;
             newPoly.polygon.points[n].z=z;
         }
 
@@ -163,6 +169,20 @@ struct ant_data{
 };
 
 vector<opening> oplist;
+
+int getMap(int x, int y,int **map){
+    if(x<0||x>mapSize) return -1;
+    if(y<0||y>mapSize) return -1;
+
+    return map[x][y];
+}
+
+void setMap(int x, int y,int value,int **map){
+    if(x<0||x>mapSize) return;
+    if(y<0||y>mapSize) return;
+
+    map[x][y]=value;
+}
 
 //rotate all points in op list around the maps center
 vector<opening> rotate_points(vector<opening> op, const double rotation){
@@ -218,7 +238,7 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
         step.dir={1,0};
         int c=0;
         int l=1;
-        while(map[start.x+step.dir.x*l][start.y+step.dir.y*l]==0){
+        while(getMap(start.x+step.dir.x*l,start.y+step.dir.y*l,map)==0){
             newDirx=clockwise?step.dir.y:-step.dir.y;
             newDiry=clockwise?-step.dir.x:step.dir.x;
             step.dir.x=newDirx;
@@ -236,17 +256,14 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
         step.dir=rotate_dir(direction,!clockwise);
         step.dir=rotate_dir(step.dir,!clockwise);
     }
-    point_int checkDir=direction;
-    int checkLenght=1;
 
     for(int d=0;d<8;d++){
-        bool check=true;
-        for(int c=0; c<checkLenght; c++){  
-            if(map[start.x+step.dir.x+checkDir.x*c][start.y+step.dir.y+checkDir.y*c]!=0){
-                check=false;
-                break;
-            }
-            
+        bool check=false;
+        if(getMap(start.x+step.dir.x,start.y+step.dir.y,map)==0){
+            point_int dir=step.dir;
+            dir=rotate_dir(dir,clockwise);
+            if(getMap(start.x+dir.x,start.y+dir.y,map)!=100)
+                check=true;
         }
         if(check){
             step.end.x=start.x+step.dir.x;
@@ -255,18 +272,18 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
             point_int dir=step.dir;
             for(int e=0;e<8;e++){
                     
-                if(map[step.end.x+dir.x][step.end.y+dir.y]==-1){
+                if(getMap(step.end.x+dir.x,step.end.y+dir.y,map)==-1){
                     step.emty_cell=true;
                     break;
                 }
                 dir=rotate_dir(dir,clockwise);
             }
-
+            //ROS_INFO("%i, %i",step.dir.x,step.dir.y);
             return step;
         }
 
         step.dir=rotate_dir(step.dir,clockwise);
-        checkDir=rotate_dir(checkDir,clockwise);
+        //step.dir=rotate_dir(step.dir,clockwise);
     }
     //ROS_INFO("no step found");
     return step;
@@ -278,7 +295,7 @@ bool checkForWall(opening o,int maximumWallCount, int** map){
     point normdVop={(o.end.x-o.start.x)/(opLenght*1.2),(o.end.y-o.start.y)/(opLenght*1.2)};
     for(int wallScan=0;wallScan<(int)(opLenght*1.2);wallScan++){
         point_int pp={o.start.x+(int)(std::round(normdVop.x*wallScan)), o.start.y+(int)(std::round(normdVop.y*wallScan))};
-        if(map[pp.x][pp.y]==100){
+        if(getMap(pp.x,pp.y,map)==100){
             wallcount+=1;
         }
     }
@@ -410,6 +427,9 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                     
                     
                 }
+                if(number_of_emty>0){
+                    number_of_emty-=1;
+                }
             }else{
                 number_of_emty+=1;
             }
@@ -454,6 +474,9 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                         op->end=search_step.end;
                     }
                     
+                }
+                if(number_of_emty>0){
+                    number_of_emty-=1;
                 }
             }else{
                 number_of_emty+=1;

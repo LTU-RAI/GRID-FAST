@@ -29,7 +29,7 @@ class TopologyMapping{
     public:
         //setup
         TopologyMapping(){
-            subOccupancyMap= nh.subscribe("/occupancy_map_global",1,&TopologyMapping::updateMap, this);
+            subOccupancyMap= nh.subscribe("/map",1,&TopologyMapping::updateMap, this);
             pubTopoMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_filterd",5);
             pubOpeningList=nh.advertise<topology_mapping::opening_list>("/opening_list_int",5);
             loadMemory();
@@ -93,7 +93,7 @@ class TopologyMapping{
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
                 if(oplist[j].label!=-1){
-                    fitToCorridor(&oplist[j],40,topMap,true, true);
+                    //fitToCorridor(&oplist[j],40,topMap,true, true);
                     if(dist(oplist[j].start,oplist[j].end)<minGroupSize){
                         oplist.erase(oplist.begin()+j);
                         j-=1;
@@ -176,9 +176,9 @@ class TopologyMapping{
         topoMapMsg.info.origin.orientation.z = 0.0;
         topoMapMsg.info.origin.orientation.w = 1.0;
 
-        topoMapMsg.info.origin.position.x = -(mapSize*resolution)/2;
-        topoMapMsg.info.origin.position.y = -(mapSize*resolution)/2;
-        topoMapMsg.info.origin.position.z = 10.05; //for visualization
+        topoMapMsg.info.origin.position.x = mapOffsetX;
+        topoMapMsg.info.origin.position.y = mapOffsetY;
+        topoMapMsg.info.origin.position.z = mapHight+0.05; //for visualization
 
         topoMapMsg.data.resize(topoMapMsg.info.width * topoMapMsg.info.height);
         std::fill(topoMapMsg.data.begin(), topoMapMsg.data.end(), -1);
@@ -198,9 +198,10 @@ class TopologyMapping{
     }
 
     //Ensures that the end and start point is next to a wall.
-    void correctOpening(opening *op){
+    bool correctOpening(opening *op, int maxMlenght){
         point_int *p1;
         point_int *p2;
+        int mlenght=0;
         for(int k=0; k<2; k++){
             if(k==0){
                 p1=&op->start;
@@ -245,8 +246,11 @@ class TopologyMapping{
             }
             p1->x+=dirX*lenght;
             p1->y+=dirY*lenght;
+
+            if(mlenght<lenght) mlenght=lenght;
             
         }
+        return mlenght<maxMlenght;
     }
 
     //Find all openings detection occupying the same opening, then removing all except the most fitnign opening detection. Return false if o should be deleted.
@@ -274,6 +278,8 @@ class TopologyMapping{
 
                     if(step.emty_cell){
                         empty_count+=1;
+                    }else if(empty_count>0){
+                        empty_count-=1;
                     }
                     
                     if(sids==0){
@@ -331,28 +337,50 @@ class TopologyMapping{
             }
 
             int cfilter=0;
+            int conectedGroupSize=0;
+            vector<int> infoList_cGroupeSize;
+            vector<int> infoList_conectedGroupSize;
             //Loop thru all map cells
             for(int i=0;i<scanSize;i++){
                 for(int j=1;j<scanSize-1;j++){
+                    if(cGroupeSize!=0){
+                        infoList_cGroupeSize.push_back(cGroupeSize);
+                        infoList_conectedGroupSize.push_back(conectedGroupSize);
+                    }
 
                     //Finde groups
                     if(getMapTransform(Map,i,j,angle)==0){
                         //check if space is free
                         if(cGroupeSize==0){
                             scanGarray[angle][i][scanGroupIndex[angle][i]].start=j;
+                            infoList_cGroupeSize.clear();
+                            infoList_conectedGroupSize.clear();
                         }
                         cGroupeSize+=1;
+                        conectedGroupSize+=1;
                         cfilter=0;
                         cfilterWall=0;
                     //filter out small point obstacles
-                    }else if (getMapTransform(Map,i,j,angle)==-1 && cfilter<cfilterSize){
+                    }else if((getMapTransform(Map,i,j,angle)==100 || cfilterWall>0) && cfilterWall<cfilterWallSize && cGroupeSize!=0 && cGroupeSize>=cfilterWallFromWallSize){
+                        cfilterWall+=1;
+                        int conectedGroupSize=0;
+                    }else if (getMapTransform(Map,i,j,angle)==-1 && cfilter<cfilterSize && cfilterWall<cfilterWallSize && cGroupeSize!=0){
                         cfilter+=1;
                     
                     //if findeing ostacals biger then filter end serche
-                    }else{
+                    }else if(cGroupeSize!=0){
+                        int endpoint=0;
+                        for(int g=0;g<infoList_cGroupeSize.size();g++){
+                            if(infoList_conectedGroupSize[infoList_conectedGroupSize.size()-1-g]>=cfilterWallFromWallSize){
+                                cGroupeSize=infoList_cGroupeSize[infoList_conectedGroupSize.size()-1-g];
+                                endpoint=j-1-cfilter- cfilterWall-g;
+                                break;
+                            }
+                        }
+
                         //if found groupe is larger then minGroupSize add it as gap
                         if(cGroupeSize>minGroupSize){
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].end=j-1-cfilter- cfilterWall;
+                            scanGarray[angle][i][scanGroupIndex[angle][i]].end=endpoint;
                             scanGarray[angle][i][scanGroupIndex[angle][i]].prevGroupIndex=0;
                             scanGarray[angle][i][scanGroupIndex[angle][i]].prevGroup[0]=NULL;
                             scanGarray[angle][i][scanGroupIndex[angle][i]].nextGroupIndex=0;
@@ -360,7 +388,7 @@ class TopologyMapping{
                             if(filter){
                                 //save filtered values
                                 for(int m=scanGarray[angle][i][scanGroupIndex[angle][i]].start;
-                                    m<j-cfilter; m++){
+                                    m<endpoint; m++){
                                         setMapTransform(scanMapOut,i,m,angle,0);
                                 }
                             }
@@ -403,11 +431,11 @@ class TopologyMapping{
                 } 
             }  
         }
-        //merge topMap and Map into topMap
+        //merge Map into topMap
         for(int x=0; x<mapSize;x++){
                 for(int y=0;y<mapSize;y++){
-                    if(topMap[x][y]!=-1 || Map[x][y]!=-1){
-                        topMap[x][y]=(Map[x][y]>=70 || topMap[x][y]>=70)?100:0;
+                    if(topMap[x][y]==-1){
+                        topMap[x][y]=Map[x][y];
                     }
                     scanMapOutTransform[x][y]=-1;
                     scanMapOut[x][y]=-1;
@@ -493,10 +521,48 @@ class TopologyMapping{
                         //rotate point back to original rotation
                         newOpList=rotate_points(newOpList,rotation);
 
+
                         for(int k=0; k<newOpList.size();k++){
                             opening o=newOpList[k];
 
-                            correctOpening(&o);
+                            if(!correctOpening(&o,10)) continue;
+
+                            //remove small objects in the map 
+                            for(int sids=0; sids<2;sids++){
+                                for(int trys=4;trys>0;trys--){
+                                    ant_data step;
+                                    step.end=sids==0?o.end:o.start;
+                                    vector<point_int> pointList;
+                                    for(int s=0;s<objectFilterMaxStep;s++){
+                                        step=ant_step(step.end,true,step.dir,topMap);
+                                        //if(step.emty_cell) break;
+                                        if(pointList.size()>0){
+                                            if(step.end==pointList[0]){
+                                                for(int i1=0;i1<pointList.size();i1++){
+                                                    for(int i2=i1+1;i2<pointList.size();i2++){
+                                                        if(pointList[i1].y!=pointList[i2].y) continue;
+
+                                                        for(int x=std::min(pointList[i1].x,pointList[i2].x);
+                                                            x<std::max(pointList[i1].x,pointList[i2].x);x++){
+                                                                setMap(x,pointList[i1].y,0,topMap);
+                                                        }
+                                                        pointList.erase(pointList.begin()+i2);
+                                                        pointList.erase(pointList.begin()+i1);
+                                                        i1-=1;
+                                                        break;
+                                                        
+                                                    }
+                                                }
+                                                trys-=1;
+                                                if(!correctOpening(&o,10)) trys=0;
+                                                
+                                                break;
+                                            }
+                                        }
+                                        pointList.push_back(step.end);
+                                    }
+                                }
+                            }
                         
                             if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;
 
@@ -585,6 +651,8 @@ class TopologyMapping{
                                                     if(emty_count>maxAntGap){
                                                         break;
                                                     }
+                                                }else if(emty_count>0){
+                                                    emty_count-=1;
                                                 }
                                             }
                                         }
