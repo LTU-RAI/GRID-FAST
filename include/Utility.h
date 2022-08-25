@@ -10,7 +10,7 @@ using namespace std;
 //Map setings
 int mapSize=1824;
 float resolution=0.2;
-float mapOffsetX=-150;//-(mapSize*resolution)/2;
+float mapOffsetX=-200;//-(mapSize*resolution)/2;
 float mapOffsetY=-100;//-(mapSize*resolution)/2;
 float mapHight=0;
 //scan setings
@@ -20,10 +20,10 @@ int minCoridorSize=8;
 int cGroupeSize=0;
 int cfilterSize=8;
 int cfilterWallSize=0;
-int objectFilterMaxStep=60;
+int objectFilterMaxStep=30;
 int cfilterWallFromWallSize=0;
 int groupeNumber=60;
-int numberOfDir=8;
+int numberOfDir=6;
 int numberOfDirFilter=numberOfDir;
 int maxGapDistans=5;
 int extendDevider=4;
@@ -270,12 +270,13 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
             step.end.y=start.y+step.dir.y;
             step.emty_cell=false;
             point_int dir=step.dir;
-            for(int e=0;e<8;e++){
+            for(int e=0;e<4;e++){
                     
                 if(getMap(step.end.x+dir.x,step.end.y+dir.y,map)==-1){
                     step.emty_cell=true;
                     break;
                 }
+                dir=rotate_dir(dir,clockwise);
                 dir=rotate_dir(dir,clockwise);
             }
             //ROS_INFO("%i, %i",step.dir.x,step.dir.y);

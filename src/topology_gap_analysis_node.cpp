@@ -529,7 +529,7 @@ class TopologyMapping{
 
                             //remove small objects in the map 
                             for(int sids=0; sids<2;sids++){
-                                for(int trys=4;trys>0;trys--){
+                                for(int trys=10;trys>0;trys--){
                                     ant_data step;
                                     step.end=sids==0?o.end:o.start;
                                     vector<point_int> pointList;
@@ -554,7 +554,7 @@ class TopologyMapping{
                                                     }
                                                 }
                                                 trys-=1;
-                                                if(!correctOpening(&o,10)) trys=0;
+                                                correctOpening(&o,10);
                                                 
                                                 break;
                                             }
