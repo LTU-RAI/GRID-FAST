@@ -16,12 +16,10 @@ float mapHight=0;
 //scan setings
 int scanSize=mapSize;
 int minGroupSize=3;
-int minCoridorSize=8;
+int minCoridorSize=3;
 int cGroupeSize=0;
-int cfilterSize=8;
-int cfilterWallSize=0;
+int cfilterSize=2;
 int objectFilterMaxStep=30;
-int cfilterWallFromWallSize=0;
 int groupeNumber=60;
 int numberOfDir=6;
 int numberOfDirFilter=numberOfDir;
@@ -30,7 +28,7 @@ int extendDevider=4;
 int searchLenght=8;
 
 //ant para
-int searchLenghtClean=100;
+int searchLenghtClean=50;
 int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
@@ -38,6 +36,9 @@ int maxAntGap=8;
 int poligonRez=4;
 int poligonRezPath=10;
 int minimumSercheLenght=5;
+
+//Debugging
+bool show_removed_openings=false;
 
 struct scanGroup{
     int start;
@@ -262,14 +263,14 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
         if(getMap(start.x+step.dir.x,start.y+step.dir.y,map)==0){
             point_int dir=step.dir;
             dir=rotate_dir(dir,clockwise);
-            if(getMap(start.x+dir.x,start.y+dir.y,map)!=100)
+            if(getMap(start.x+dir.x,start.y+dir.y,map)==0)
                 check=true;
         }
         if(check){
             step.end.x=start.x+step.dir.x;
             step.end.y=start.y+step.dir.y;
             step.emty_cell=false;
-            point_int dir=step.dir;
+            point_int dir={0,1};
             for(int e=0;e<4;e++){
                     
                 if(getMap(step.end.x+dir.x,step.end.y+dir.y,map)==-1){
@@ -292,9 +293,10 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
 
 bool checkForWall(opening o,int maximumWallCount, int** map){
     int wallcount=0;
+    double l=2;
     double opLenght=dist(o.start,o.end);
-    point normdVop={(o.end.x-o.start.x)/(opLenght*1.2),(o.end.y-o.start.y)/(opLenght*1.2)};
-    for(int wallScan=0;wallScan<(int)(opLenght*1.2);wallScan++){
+    point normdVop={(o.end.x-o.start.x)/(opLenght*l),(o.end.y-o.start.y)/(opLenght*l)};
+    for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
         point_int pp={o.start.x+(int)(std::round(normdVop.x*wallScan)), o.start.y+(int)(std::round(normdVop.y*wallScan))};
         if(getMap(pp.x,pp.y,map)==100){
             wallcount+=1;
@@ -314,7 +316,7 @@ bool ccw(point A,point B,point C){
 
 //Return true if line segments o1 and o2 intersect.
 bool intersect_line(opening o1,opening o2, int** map){
-    double l=.6;
+    double l=1.0;
     double l1 = dist(o1.start,o1.end);
     double l2 = dist(o2.start,o2.end);
     point n1={((o1.end.x-o1.start.x)/l1)*l, ((o1.end.y-o1.start.y)/l1)*l};
@@ -362,7 +364,7 @@ int check_and_get_opening(point_int position, int type, bool only_standard_openi
     int oIndex=-1;
     
     for(int i=0; i<oplist.size(); i++){
-        if(oplist[i].label!=-1 && (!only_standard_opening || oplist[i].label==1) &&
+        if(oplist[i].label<10 && (!only_standard_opening || oplist[i].label==1) &&
             (type==1 && oplist[i].start==position || type==2 && oplist[i].end==position ||
             type==3 && (oplist[i].start==position || oplist[i].end==position))){
                 oIndex=i;
@@ -389,6 +391,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
     double minimumDistans=-1;
     bool cw;
     int num_steps;
+    bool returnValue=true;
     if(oneDir){
         op->start_is_outside=false;
     }
@@ -410,6 +413,11 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
             if(!search_step.emty_cell){
                 double d=dist(search_step.end,!op->start_is_outside?op->start:op->end);
                 if((minimumDistans<0 || d<minimumDistans)){
+                    opening tOp;
+                    tOp.start=!op->start_is_outside?op->start:op->end;
+                    tOp.end=search_step.end;
+                    if(checkForWall(tOp,1,map)) continue;
+
                     for(int k=0; k<s1.size(); k++){
                         if(sides==0){
                             sida1->push_back(s1[k]);
@@ -418,14 +426,14 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                         }
                     }
                     s1.clear();
-                    minimumDistans=d;
                     m=0;
+                    minimumDistans=d;
+                    
                     if(op->start_is_outside){
                         op->start=search_step.end;
                     }else{
                         op->end=search_step.end;
                     }
-                    
                     
                 }
                 if(number_of_emty>0){
@@ -437,7 +445,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
         }
     }
     if(minimumDistans<0){
-        return false;
+        returnValue=false;
     }
     minimumDistans=-1;
     for(int sides=0; sides<1; sides++){
@@ -459,6 +467,10 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
             if(!search_step.emty_cell){
                 double d=dist(search_step.end,op->start_is_outside?op->start:op->end);
                 if(minimumDistans<0 || d<minimumDistans){
+                    opening tOp;
+                    tOp.start=!op->start_is_outside?op->start:op->end;
+                    tOp.end=search_step.end;
+                    if(checkForWall(tOp,1,map)) continue;
                     for(int k=0; k<s2.size(); k++){
                         if(sides==0){
                             sida2->push_back(s2[k]);
@@ -474,7 +486,6 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                     }else{
                         op->end=search_step.end;
                     }
-                    
                 }
                 if(number_of_emty>0){
                     number_of_emty-=1;
@@ -485,7 +496,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
         }
     }
     if(minimumDistans<0){
-        return false;
+        returnValue=false;
     }
-    return true;        
+    return returnValue;        
 }

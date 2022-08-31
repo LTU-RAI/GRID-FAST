@@ -83,32 +83,34 @@ class TopologyMapping{
         while (ros::ok()){
             oplist.clear();
             topologyScan();
-            //remove openings tags for removal (openings with label==-1)
-            for(int j=0; j<oplist.size(); j++){
-                if(oplist[j].label==-1){
-                    oplist.erase(oplist.begin()+j);
-                    j-=1;
-                }
-            } 
+            
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
-                if(oplist[j].label!=-1){
-                    //fitToCorridor(&oplist[j],40,topMap,true, true);
+                if(oplist[j].label<10){
+                    fitToCorridor(&oplist[j],40,topMap,true, true);
                     if(dist(oplist[j].start,oplist[j].end)<minGroupSize){
                         oplist.erase(oplist.begin()+j);
                         j-=1;
                     }
                 }
             }
+
+            //remove openings tags for removal (openings with label>10)
+            for(int j=0; j<oplist.size() && !show_removed_openings; j++){
+                if(oplist[j].label>10){
+                    oplist.erase(oplist.begin()+j);
+                    j-=1;
+                }
+            } 
             //if there are any overlap missed or created since las cheek they are removed.
             for(int j=0; j<oplist.size(); j++){
                 for(int b=0; b<oplist.size(); b++){
-                    if(intersect_line(oplist[j],oplist[b],topMap) && oplist[b].label!=-1 && oplist[j].label!=-1 && j!=b){
+                    if(intersect_line(oplist[j],oplist[b],topMap) && oplist[b].label<10 && oplist[j].label<10 && j!=b){
                         ROS_INFO("overlap");
                         if(dist(oplist[j].start,oplist[j].end)<dist(oplist[b].start,oplist[b].end)){
-                            oplist[b].label=-1;
+                            oplist[b].label=18;
                         }else{
-                            oplist[j].label=-1;
+                            oplist[j].label=18;
                         }
                     }
                     
@@ -298,7 +300,7 @@ class TopologyMapping{
                                     vint[index]+=cw==0?s:-s;
                                     //remove the last fitting opening
                                     if(dist(op.start,op.end)+vint[index]/extendDevider<dist(oplist[opIndex].start,oplist[opIndex].end)){
-                                        oplist[opIndex].label=-1;
+                                        oplist[opIndex].label=14;
                                         return true;
                                     }else{
                                         selfDel = false;
@@ -326,7 +328,6 @@ class TopologyMapping{
             }
         }
 
-        int cfilterWall=0;
         for(int angle=0; angle<numberOfDir; angle++){
             //check if this loop cycle should be filtered
             bool filter=numberOfDir%((int)(numberOfDir/numberOfDirFilter))==0;
@@ -337,47 +338,25 @@ class TopologyMapping{
             }
 
             int cfilter=0;
-            int conectedGroupSize=0;
-            vector<int> infoList_cGroupeSize;
-            vector<int> infoList_conectedGroupSize;
             //Loop thru all map cells
             for(int i=0;i<scanSize;i++){
                 for(int j=1;j<scanSize-1;j++){
-                    if(cGroupeSize!=0){
-                        infoList_cGroupeSize.push_back(cGroupeSize);
-                        infoList_conectedGroupSize.push_back(conectedGroupSize);
-                    }
 
                     //Finde groups
                     if(getMapTransform(Map,i,j,angle)==0){
                         //check if space is free
                         if(cGroupeSize==0){
                             scanGarray[angle][i][scanGroupIndex[angle][i]].start=j;
-                            infoList_cGroupeSize.clear();
-                            infoList_conectedGroupSize.clear();
                         }
                         cGroupeSize+=1;
-                        conectedGroupSize+=1;
                         cfilter=0;
-                        cfilterWall=0;
                     //filter out small point obstacles
-                    }else if((getMapTransform(Map,i,j,angle)==100 || cfilterWall>0) && cfilterWall<cfilterWallSize && cGroupeSize!=0 && cGroupeSize>=cfilterWallFromWallSize){
-                        cfilterWall+=1;
-                        int conectedGroupSize=0;
-                    }else if (getMapTransform(Map,i,j,angle)==-1 && cfilter<cfilterSize && cfilterWall<cfilterWallSize && cGroupeSize!=0){
+                    }else if (getMapTransform(Map,i,j,angle)==-1 && cfilter<cfilterSize && cGroupeSize!=0){
                         cfilter+=1;
                     
                     //if findeing ostacals biger then filter end serche
                     }else if(cGroupeSize!=0){
-                        int endpoint=0;
-                        for(int g=0;g<infoList_cGroupeSize.size();g++){
-                            if(infoList_conectedGroupSize[infoList_conectedGroupSize.size()-1-g]>=cfilterWallFromWallSize){
-                                cGroupeSize=infoList_cGroupeSize[infoList_conectedGroupSize.size()-1-g];
-                                endpoint=j-1-cfilter- cfilterWall-g;
-                                break;
-                            }
-                        }
-
+                        int endpoint=j-1-cfilter;
                         //if found groupe is larger then minGroupSize add it as gap
                         if(cGroupeSize>minGroupSize){
                             scanGarray[angle][i][scanGroupIndex[angle][i]].end=endpoint;
@@ -434,8 +413,8 @@ class TopologyMapping{
         //merge Map into topMap
         for(int x=0; x<mapSize;x++){
                 for(int y=0;y<mapSize;y++){
-                    if(topMap[x][y]==-1){
-                        topMap[x][y]=Map[x][y];
+                    if(topMap[x][y]!=-1 || Map[x][y]!=-1){
+                        topMap[x][y]=(Map[x][y]>=70 || topMap[x][y]>=70)?100:0;
                     }
                     scanMapOutTransform[x][y]=-1;
                     scanMapOut[x][y]=-1;
@@ -486,13 +465,41 @@ class TopologyMapping{
 
                                 depthCount+=1;
                                 if(depthCount==minCoridorSize){
+                                    //move the start and end pos in gaps to fit the filterd map
+                                    int newStart, newEnd, S, E;
+                                    if(direction==0){
+                                        newStart=scanGarray[angle][i][index].prevGroup[h]->start;
+                                        S=scanGarray[angle][i][index].prevGroup[h]->start;
+                                        newEnd=scanGarray[angle][i][index].prevGroup[h]->end;
+                                        E=scanGarray[angle][i][index].prevGroup[h]->end;
+                                    }else{
+                                        newStart=scanGarray[angle][i][index].nextGroup[h]->start;
+                                        S=scanGarray[angle][i][index].nextGroup[h]->start;
+                                        newEnd=scanGarray[angle][i][index].nextGroup[h]->end;
+                                        E=scanGarray[angle][i][index].nextGroup[h]->end;
+                                    }
+                                    int bigestLenght=-1;
+                                    int firstP=-1;
+                                    for(int y=S;y<=E; y++){
+                                        if(getMapTransform(topMap,i,y,angle)==0 && firstP==-1){
+                                            firstP=y;
+                                        }
+                                        if(getMapTransform(topMap,i,y,angle)!=0 && firstP!=-1){
+                                            if(y-1-firstP>bigestLenght){
+                                                newStart=firstP;
+                                                newEnd=y-1;
+                                                firstP=-1;
+                                            }
+                                        }
+                                    }
+
                                     opening newOp;
                                     if(direction==0){
-                                        newOp.start={i,scanGarray[angle][i][index].prevGroup[h]->end};
-                                        newOp.end={i,scanGarray[angle][i][index].prevGroup[h]->start};
+                                        newOp.start={i,newEnd};
+                                        newOp.end={i,newStart};
                                     }else{
-                                        newOp.start={i,scanGarray[angle][i][index].nextGroup[h]->start};
-                                        newOp.end={i,scanGarray[angle][i][index].nextGroup[h]->end};
+                                        newOp.start={i,newStart};
+                                        newOp.end={i,newEnd};
                                     }
                                     newOpList.push_back(newOp);
                                     break;
@@ -518,6 +525,7 @@ class TopologyMapping{
                         }
                         
                         int inSearchLenght=40;
+
                         //rotate point back to original rotation
                         newOpList=rotate_points(newOpList,rotation);
 
@@ -559,6 +567,9 @@ class TopologyMapping{
                                                 break;
                                             }
                                         }
+                                        if(s==objectFilterMaxStep-1){
+                                            trys=0;
+                                        }
                                         pointList.push_back(step.end);
                                     }
                                 }
@@ -598,9 +609,9 @@ class TopologyMapping{
                             bool skip=false;
 
                         //Check if opening is overlapping another opening.
-                        for(int h=0; h<oplist.size() && !skip && o.label!=-1; h++){
+                        for(int h=0; h<oplist.size() && !skip && o.label<10; h++){
                                 opening oplistComp=oplist[h];
-                                if(intersect_line(o,oplistComp,topMap) && oplistComp.label!=-1 && o.label!=-1){
+                                if(intersect_line(o,oplistComp,topMap) && oplistComp.label<10 && o.label<10){
 
                                     bool conected[]={false, false};
                                     point_int conect[2];
@@ -662,8 +673,7 @@ class TopologyMapping{
                                     //If overlapping opening doesnt share a wall with o then keep the shortest opening. 
                                     if(!conected[0] && !conected[1]){
                                         if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
-                                            oplist.erase(oplist.begin()+h);
-                                            h-=1;
+                                            oplist[h].label=16;
                                             break;
                                         }else{
                                             skip=true;
@@ -718,7 +728,7 @@ class TopologyMapping{
                                     //Check if the issue was sold otherwise delete the longest opening.
                                     if(intersect_line(o,oplistComp,topMap)){
                                         if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
-                                            oplist.erase(oplist.begin()+h);
+                                            oplist[h].label=16;
                                             h-=1;
                                             break;
                                         }else{
@@ -729,17 +739,17 @@ class TopologyMapping{
                                 }
                             }
 
-                            if(skip)o.label=-1;
+                            if(skip)o.label=16;//Removed because overlap couldn't be solved
 
                             if(dist(o.start,o.end)<minGroupSize){
                                 continue;
                             }
                             
-                            if(checkForWall(o, 2,topMap))o.label=-1;
+                            if(checkForWall(o, 1,topMap))o.label=12;
 
-                            if(o.label!=-1){
+                            if(o.label<10){
                                 if(!cleanOpenings(o)){
-                                    o.label=-1;
+                                    o.label=14;
                                 }
                             }
 

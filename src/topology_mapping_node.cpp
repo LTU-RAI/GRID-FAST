@@ -33,7 +33,7 @@ class TopologyMapping{
         
     //Load all maps into the memory
     void loadMemory(){
-        oplist.reserve(200);
+        oplist.reserve(400);
         //alocate for Maps
         topMap=new int*[mapSize];
         for(int i=0;i<mapSize;i++){
@@ -69,7 +69,12 @@ class TopologyMapping{
                 
                     //remove unused openings
                     for(int b=0; b<oplist.size(); b++){
-                        if(oplist[b].parent_poligon<0 || oplist[b].label<0){
+                        if(oplist[b].parent_poligon<0 && oplist[b].label<10){
+                            oplist[b].label=24;
+                        }
+                    }
+                    for(int b=0; b<oplist.size() && !show_removed_openings; b++){
+                        if(oplist[b].label>10){
                             oplist.erase(oplist.begin()+b);
                             b-=1;
                         }
@@ -134,7 +139,7 @@ class TopologyMapping{
                 }
             }
             if(remove_openign){
-                oplist[opIndex].label=-1;
+                oplist[opIndex].label=26;
             }
         }
     }
@@ -182,12 +187,11 @@ class TopologyMapping{
                         }else{
                             rezCounter+=1;
                         }
-                        step_info=ant_step(step_info.end,cw,step_info.dir,topMap);
-
+                        
                         opIndex=check_and_get_opening(step_info.end,cw?1:2,true);
                         
                         // found bad conection
-                        if(opIndex!=-1 ||
+                        if((opIndex!=-1 && opIndex!=targetIndex) ||
                             empty_cell_count>maxAntGap || s==sercheLenthAntConect){
                                 if(cw){
                                     wait=s;
@@ -213,7 +217,7 @@ class TopologyMapping{
                                         int newIndex=oplist.size();
                                         oplist.push_back(newOp);
                                         //check if new opening is good 
-                                        if(!checkForWall(newOp,2,topMap) && dist(newOp.start,newOp.end)>=minGroupSize){
+                                        if(!checkForWall(newOp,1,topMap) && dist(newOp.start,newOp.end)>=minGroupSize){
                                             for(int k=0; k<s2.size();k+=poligonRez){
                                                 poly.add_point(s2[k],cw);
                                             }
@@ -227,6 +231,7 @@ class TopologyMapping{
 
                                         }else{//bad new opening, remove conflicting opening instead
                                             oplist[newIndex].parent_poligon=-1;
+                                            oplist[newIndex].label=11;
                                             if(opIndex>=0){
                                                 remove_parent_poligon(opIndex,true);
                                                 i-=1;
@@ -261,11 +266,11 @@ class TopologyMapping{
                                     poly.sidesIndex.push_back(opIndex);
                                     targetIndex=opIndex;
                                     break;
-                                }else if(poly.sidesIndex.size()==2 && totalSlenght<=minimumSercheLenght){//Too small connection, flipping the openings
+                                }else if(poly.sidesIndex.size()==2 ){//&& totalSlenght<=minimumSercheLenght){//Too small connection, flipping the openings
                                     ROS_INFO("Small connection");
                                     oplist[targetIndex].parent_poligon=-1;
                                     if(oplist[i].fliped){//remove opening if flipped two times
-                                        oplist[i].label=-1;
+                                        oplist[i].label=28;
                                     }else{
                                         oplist[i].parent_poligon=-1;
                                         oplist[targetIndex].flip();
@@ -284,6 +289,8 @@ class TopologyMapping{
                                     break;
                                 }
                         }
+
+                        step_info=ant_step(step_info.end,cw,step_info.dir,topMap);
 
                         if(step_info.emty_cell){
                             empty_cell_count+=1;
@@ -338,6 +345,7 @@ class TopologyMapping{
                 int countExtraPaths=0;
 
                 for(int sids=0; sids<2 && !check; sids++){
+                    int max_emty_cells=0;
                     int empty_cell_count=0;
                     bool cw=sids==0;
                     if(cw){
@@ -368,7 +376,7 @@ class TopologyMapping{
                         opIndex=check_and_get_opening(step_info.end,cw?1:2);
                         
                         //Found connection
-                        if(opIndex!=-1 || empty_cell_count>maxAntGap || s==sercheLenthAntConect){
+                        if(opIndex!=-1 || s==sercheLenthAntConect){
                             if(oplist[opIndex].parent_poligon>=0){
                                 oplist[opIndex].conected_to_path=-2;
                                 poly.sidesIndex.push_back(opIndex);
@@ -379,9 +387,13 @@ class TopologyMapping{
                                     if(opIndex==i){//opening found it self, no need to search other side 
                                         check=true;
                                         complet=true;
-                                        pathType=1;
-                                    }else if(opIndex==-1){//opening led to an unexplored area
-                                        pathType=2;
+                                        if(max_emty_cells>maxAntGap){
+                                            pathType=2;//opening led to an unexplored area
+                                        }else{
+                                            pathType=1;//dead end
+                                        }
+                                    }else if(max_emty_cells>maxAntGap){
+                                        pathType=5;
                                     }
                                     break;
                                 }else{
@@ -401,6 +413,9 @@ class TopologyMapping{
                                             complet=true;
                                         }
 
+                                    }else if(max_emty_cells>maxAntGap){
+                                        pathType=5;
+                                        complet=true;
                                     }else if(pathType==0){
                                         pathType=3;
                                         complet=true;
@@ -414,6 +429,7 @@ class TopologyMapping{
                         }
                         if(step_info.emty_cell){
                             empty_cell_count+=1;
+                            if(empty_cell_count>max_emty_cells) max_emty_cells=empty_cell_count;
                         }else if(empty_cell_count>0){
                             empty_cell_count-=1;
                         }
@@ -437,6 +453,10 @@ class TopologyMapping{
 
                     case 4://path connected to multiple intersection
                         label=76;
+                        break;
+
+                    case 5://path with potensial unexplord area 
+                        label=28;
                         break;
 
                     default:
@@ -469,32 +489,45 @@ class TopologyMapping{
         for(int i=0; i<oplist.size(); i++){
             //convert the line of an opening to a rectangular polygon
             opening op=oplist[i];
-            point nNorm={-(double)(op.end.y-op.start.y),
-                            (double)(op.end.x-op.start.x)};
-            double l=sqrt(abs(nNorm.x*nNorm.x+nNorm.y*nNorm.y));
-            nNorm.x=nNorm.x/l*resolution;
-            nNorm.y=nNorm.y/l*resolution;
+            point side={(double)(op.end.x-op.start.x)*resolution,
+                        (double)(op.end.y-op.start.y)*resolution};
+            
+            double l=sqrt(abs(side.x*side.x+side.y*side.y));
+            point nSide={side.x/(8*l),side.y/(8*l)};
+            point nNorm={-nSide.y, nSide.x};
             geometry_msgs::PolygonStamped p;
             p.header.frame_id = "map";
             p.header.stamp = ros::Time::now();
-            p.polygon.points.resize(4);
+            p.polygon.points.resize(7);
             topMap[op.start.x][op.start.y]=100;
             topMap[op.end.x][op.end.y]=50;
             p.polygon.points[0].x=(op.start.x-MapOrigenX)*resolution;
             p.polygon.points[0].y=(op.start.y-MapOrigenY)*resolution;
             p.polygon.points[0].z=0.2;
 
-            p.polygon.points[1].x=(op.end.x-MapOrigenX)*resolution;
-            p.polygon.points[1].y=(op.end.y-MapOrigenY)*resolution;
+            p.polygon.points[1].x=(op.start.x-MapOrigenX)*resolution+side.x/2-nSide.x;
+            p.polygon.points[1].y=(op.start.y-MapOrigenY)*resolution+side.y/2-nSide.y;
             p.polygon.points[1].z=0.2;
-            
-            p.polygon.points[2].x=(op.end.x-MapOrigenX)*resolution+nNorm.x;
-            p.polygon.points[2].y=(op.end.y-MapOrigenY)*resolution+nNorm.y;
+
+            p.polygon.points[2].x=(op.start.x-MapOrigenX)*resolution+side.x/2-2*nNorm.x;
+            p.polygon.points[2].y=(op.start.y-MapOrigenY)*resolution+side.y/2-2*nNorm.y;
             p.polygon.points[2].z=0.2;
 
-            p.polygon.points[3].x=(op.start.x-MapOrigenX)*resolution+nNorm.x;
-            p.polygon.points[3].y=(op.start.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[3].x=(op.start.x-MapOrigenX)*resolution+side.x/2+nSide.x;
+            p.polygon.points[3].y=(op.start.y-MapOrigenY)*resolution+side.y/2+nSide.y;
             p.polygon.points[3].z=0.2;
+
+            p.polygon.points[4].x=(op.end.x-MapOrigenX)*resolution;
+            p.polygon.points[4].y=(op.end.y-MapOrigenY)*resolution;
+            p.polygon.points[4].z=0.2;
+            
+            p.polygon.points[5].x=(op.end.x-MapOrigenX)*resolution+nNorm.x;
+            p.polygon.points[5].y=(op.end.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[5].z=0.2;
+
+            p.polygon.points[6].x=(op.start.x-MapOrigenX)*resolution+nNorm.x;
+            p.polygon.points[6].y=(op.start.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[6].z=0.2;
             
             pubPolyArray_old.polygons[i]=p;
             pubPolyArray_old.labels[i]=op.label;
