@@ -21,7 +21,7 @@ int cGroupeSize=0;
 int cfilterSize=2;
 int objectFilterMaxStep=30;
 int groupeNumber=60;
-int numberOfDir=6;
+int numberOfDir=8;
 int numberOfDirFilter=numberOfDir;
 int maxGapDistans=5;
 int extendDevider=4;
@@ -457,7 +457,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
         for(int m=0;m<inSearchLenght && number_of_emty<maxAntGap;m++){
             num_steps+=1;
             search_step=ant_step(search_step.end,cw,search_step.dir,map);
-            if(sida1!=NULL){
+            if(sida2!=NULL){
                 s2.push_back(search_step.end);
             }
 
@@ -475,7 +475,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                         if(sides==0){
                             sida2->push_back(s2[k]);
                         }else{
-                            sida2->insert(sida1->begin() ,s2[k]);
+                            sida2->insert(sida2->begin() ,s2[k]);
                         }
                     }
                     s2.clear();

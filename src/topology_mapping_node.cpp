@@ -196,7 +196,7 @@ class TopologyMapping{
                                 if(cw){
                                     wait=s;
 
-                                    ROS_INFO("found no connection searching other direction ");
+                                    ROS_INFO("found no connection searching other direction");
                                     lastIndex=targetIndex;
                                     targetIndex=firstIndex;
                                     cw=false;
@@ -221,8 +221,8 @@ class TopologyMapping{
                                             for(int k=0; k<s2.size();k+=poligonRez){
                                                 poly.add_point(s2[k],cw);
                                             }
-                                            if(s2.size()>1) poly.add_point(newOp.end,cw);
-                                            if(s1.size()>1) poly.add_point(newOp.start,cw);
+                                            if(s2.size()>0) poly.add_point(newOp.end,cw);
+                                            if(s1.size()>0) poly.add_point(newOp.start,cw);
                                             for(int k=s1.size()-1; k>0;k-=poligonRez){
                                                 poly.add_point(s1[k],cw);
                                             }
@@ -304,7 +304,7 @@ class TopologyMapping{
                             ROS_INFO("%i, start: %i, %i, end: %i, %i",i,oplist[poly.sidesIndex[p]].start.x, oplist[poly.sidesIndex[p]].start.y,oplist[poly.sidesIndex[p]].end.x, oplist[poly.sidesIndex[p]].end.y);
                         }
                         if(poly.sidesIndex.size()==1){
-                            label=15;
+                            label=41;
                         }else if(poly.sidesIndex.size()==2){
                             label=20;
                         }else{
@@ -392,13 +392,14 @@ class TopologyMapping{
                                         }else{
                                             pathType=1;//dead end
                                         }
-                                    }else if(max_emty_cells>maxAntGap){
+                                    }else if(max_emty_cells>maxAntGap && opIndex!=-1){
                                         pathType=5;
+                                    }else if(s==sercheLenthAntConect){
+                                        pathType=1;//dead end
                                     }
                                     break;
                                 }else{
                                     if(opIndex!=firstOpIndex){
-                                        
                                         ROS_INFO("Warning, path with more than two connection!");
                                         pathType=4;
                                         if(opIndex!=-1){//loop is rerun to connect additional openings
@@ -413,7 +414,7 @@ class TopologyMapping{
                                             complet=true;
                                         }
 
-                                    }else if(max_emty_cells>maxAntGap){
+                                    }else if(max_emty_cells>maxAntGap && opIndex!=-1){
                                         pathType=5;
                                         complet=true;
                                     }else if(pathType==0){
@@ -509,8 +510,8 @@ class TopologyMapping{
             p.polygon.points[1].y=(op.start.y-MapOrigenY)*resolution+side.y/2-nSide.y;
             p.polygon.points[1].z=0.2;
 
-            p.polygon.points[2].x=(op.start.x-MapOrigenX)*resolution+side.x/2-2*nNorm.x;
-            p.polygon.points[2].y=(op.start.y-MapOrigenY)*resolution+side.y/2-2*nNorm.y;
+            p.polygon.points[2].x=(op.start.x-MapOrigenX)*resolution+side.x/2+2*nNorm.x;
+            p.polygon.points[2].y=(op.start.y-MapOrigenY)*resolution+side.y/2+2*nNorm.y;
             p.polygon.points[2].z=0.2;
 
             p.polygon.points[3].x=(op.start.x-MapOrigenX)*resolution+side.x/2+nSide.x;
@@ -521,12 +522,12 @@ class TopologyMapping{
             p.polygon.points[4].y=(op.end.y-MapOrigenY)*resolution;
             p.polygon.points[4].z=0.2;
             
-            p.polygon.points[5].x=(op.end.x-MapOrigenX)*resolution+nNorm.x;
-            p.polygon.points[5].y=(op.end.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[5].x=(op.end.x-MapOrigenX)*resolution-nNorm.x;
+            p.polygon.points[5].y=(op.end.y-MapOrigenY)*resolution-nNorm.y;
             p.polygon.points[5].z=0.2;
 
-            p.polygon.points[6].x=(op.start.x-MapOrigenX)*resolution+nNorm.x;
-            p.polygon.points[6].y=(op.start.y-MapOrigenY)*resolution+nNorm.y;
+            p.polygon.points[6].x=(op.start.x-MapOrigenX)*resolution-nNorm.x;
+            p.polygon.points[6].y=(op.start.y-MapOrigenY)*resolution-nNorm.y;
             p.polygon.points[6].z=0.2;
             
             pubPolyArray_old.polygons[i]=p;

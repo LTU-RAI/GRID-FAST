@@ -87,7 +87,7 @@ class TopologyMapping{
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
                 if(oplist[j].label<10){
-                    fitToCorridor(&oplist[j],40,topMap,true, true);
+                    //fitToCorridor(&oplist[j],40,topMap,true, true);
                     if(dist(oplist[j].start,oplist[j].end)<minGroupSize){
                         oplist.erase(oplist.begin()+j);
                         j-=1;
