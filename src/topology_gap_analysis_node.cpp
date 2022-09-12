@@ -17,6 +17,7 @@ class TopologyMapping{
         int **topMap;
 
         //global var
+        bool **ObjectFilterLookup;
         int **scanMap;
         int **scanMapOut;
         int **scanMapOutTransform;
@@ -42,12 +43,14 @@ class TopologyMapping{
         generateMapTransform();
 
         //Creat all maps in memory
+        ObjectFilterLookup=new bool*[mapSize];
         scanMap=new int*[mapSize];
         scanMapOut=new int*[mapSize];
         scanMapOutTransform=new int*[mapSize];
         Map=new int*[mapSize];
         topMap=new int*[mapSize];
         for(int i=0;i<mapSize;i++){
+            ObjectFilterLookup[i]=new bool[mapSize];
             Map[i]=new int[mapSize];
             topMap[i]=new int[mapSize];
             scanMapOut[i]=new int[mapSize];
@@ -106,7 +109,7 @@ class TopologyMapping{
             for(int j=0; j<oplist.size(); j++){
                 for(int b=0; b<oplist.size(); b++){
                     if(intersect_line(oplist[j],oplist[b],topMap) && oplist[b].label<10 && oplist[j].label<10 && j!=b){
-                        ROS_INFO("overlap");
+                        //ROS_INFO("overlap");
                         if(dist(oplist[j].start,oplist[j].end)<dist(oplist[b].start,oplist[b].end)){
                             oplist[b].label=18;
                         }else{
@@ -325,6 +328,7 @@ class TopologyMapping{
         for(int x=0; x<mapSize;x++){
             for(int y=0;y<mapSize;y++){
                 topMap[x][y]=-1;
+                ObjectFilterLookup[x][y]=false;
             }
         }
 
@@ -537,42 +541,49 @@ class TopologyMapping{
 
                             //remove small objects in the map 
                             for(int sids=0; sids<2;sids++){
-                                for(int trys=10;trys>0;trys--){
-                                    ant_data step;
-                                    step.end=sids==0?o.end:o.start;
-                                    vector<point_int> pointList;
-                                    for(int s=0;s<objectFilterMaxStep;s++){
-                                        step=ant_step(step.end,true,step.dir,topMap);
-                                        //if(step.emty_cell) break;
-                                        if(pointList.size()>0){
-                                            if(step.end==pointList[0]){
-                                                for(int i1=0;i1<pointList.size();i1++){
-                                                    for(int i2=i1+1;i2<pointList.size();i2++){
-                                                        if(pointList[i1].y!=pointList[i2].y) continue;
-
-                                                        for(int x=std::min(pointList[i1].x,pointList[i2].x);
-                                                            x<std::max(pointList[i1].x,pointList[i2].x);x++){
-                                                                setMap(x,pointList[i1].y,0,topMap);
+                                ant_data step;
+                                step.end=sids==0?o.end:o.start;
+                                vector<point_int> pointList;
+                                for(int s=0;s<objectFilterMaxStep;s++){
+                                    step=ant_step(step.end,true,step.dir,topMap);
+                                    if(ObjectFilterLookup[step.end.x][step.end.y]){
+                                        break;
+                                    }
+                                    if(pointList.size()>0){
+                                        if(step.end==pointList[0]){
+                                            for(int i1=0;i1<pointList.size();i1++){
+                                                int i3=-1;
+                                                for(int i2=i1+1;i2<pointList.size();i2++){
+                                                    if(pointList[i1].y!=pointList[i2].y) continue;
+                                                    if(i3==-1){
+                                                        i3=i2;
+                                                    }else{
+                                                        if(std::abs(pointList[i1].x-pointList[i2].x)<std::abs(pointList[i1].x-pointList[i3].x)){
+                                                            i3=i2;
                                                         }
-                                                        pointList.erase(pointList.begin()+i2);
-                                                        pointList.erase(pointList.begin()+i1);
-                                                        i1-=1;
-                                                        break;
-                                                        
                                                     }
                                                 }
-                                                trys-=1;
-                                                correctOpening(&o,10);
-                                                
-                                                break;
+                                                if(i3!=-1){
+                                                    for(int x=std::min(pointList[i1].x,pointList[i3].x);
+                                                        x<std::max(pointList[i1].x,pointList[i3].x);x++){
+                                                            setMap(x,pointList[i1].y,0,topMap);
+                                                    }
+                                                    pointList.erase(pointList.begin()+i3);
+                                                    pointList.erase(pointList.begin()+i1);
+                                                    i1-=1;
+                                                }
                                             }
+                                            sids-=1;
+                                            correctOpening(&o,10);
+                                            ObjectFilterLookup[step.end.x][step.end.y]=true;
+                                            break;
+                                        }else{
+                                            ObjectFilterLookup[step.end.x][step.end.y]=true;
                                         }
-                                        if(s==objectFilterMaxStep-1){
-                                            trys=0;
-                                        }
-                                        pointList.push_back(step.end);
                                     }
+                                    pointList.push_back(step.end);
                                 }
+                                
                             }
                         
                             if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;

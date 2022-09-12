@@ -4,19 +4,21 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <jsk_recognition_msgs/PolygonArray.h>
 #include <geometry_msgs/PolygonStamped.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/Marker.h>
 #include <topology_mapping/opening_list.h>
 using namespace std;
 
 //Map setings
-int mapSize=1824;
+int mapSize=1000;//1824;
 float resolution=0.2;
 float mapOffsetX=-200;//-(mapSize*resolution)/2;
 float mapOffsetY=-100;//-(mapSize*resolution)/2;
 float mapHight=0;
 //scan setings
 int scanSize=mapSize;
-int minGroupSize=3;
-int minCoridorSize=3;
+int minGroupSize=4;
+int minCoridorSize=5;
 int cGroupeSize=0;
 int cfilterSize=2;
 int objectFilterMaxStep=30;
@@ -74,7 +76,6 @@ bool operator==(const point_int& lhs, const point_int& rhs)
 {
     return lhs.x==rhs.x && lhs.y==rhs.y;
 }
-struct poligon;
 
 struct opening{
     point_int start;
@@ -83,6 +84,7 @@ struct opening{
     int label=1;
     int parent_poligon=-1;
     bool fliped=false;
+    bool moved=false;
     int conected_to_path=-1;
 
     void flip(){
@@ -90,18 +92,34 @@ struct opening{
         start=end;
         end=t;
     }
+
+    point_int get_center(){
+        point_int center={0,0};
+        center.x=(end.x-start.x)/2+start.x;
+        center.y=(end.y-start.y)/2+start.y;
+        return center;
+    }
 };
 
 struct poligon{
+    point_int center={0,0};
     vector<int> sidesIndex;
     vector<point_int> poligon_points;
     int label=1;
     bool inactiv=false;
+    bool path=false;
     void add_point(point_int p, bool cw){
         if(cw){
             poligon_points.push_back(p);
         }else{
             poligon_points.insert(poligon_points.begin(),p);
+        }
+    }
+    void add_sideIndex(int index, bool cw){
+        if(cw){
+            sidesIndex.push_back(index);
+        }else{
+            sidesIndex.insert(sidesIndex.begin(),index);
         }
     }
 };
