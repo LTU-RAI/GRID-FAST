@@ -218,7 +218,8 @@ class TopologyMapping{
             int tIndex=0;
 
             //move points outside a wall 
-            while (topMap[p1->x][p1->y]!=0){
+            while (topMap[p1->x][p1->y]!=0|| topMap[p1->x+1][p1->y]!=0 && topMap[p1->x-1][p1->y]!=0 &&
+                    topMap[p1->x][p1->y+1]!=0 && topMap[p1->x][p1->y-1]!=0){
                 if(abs(p2->x-p1->x)>abs(p2->y-p1->y)&&abs(p2->x-p1->x)>2){
                     p1->x+=(p2->x-p1->x)<0?-1:1;
                 }
@@ -544,41 +545,55 @@ class TopologyMapping{
                                 ant_data step;
                                 step.end=sids==0?o.end:o.start;
                                 vector<point_int> pointList;
-                                for(int s=0;s<objectFilterMaxStep;s++){
+                                for(int s=0;s<=objectFilterMaxStep;s++){
                                     step=ant_step(step.end,true,step.dir,topMap);
                                     if(ObjectFilterLookup[step.end.x][step.end.y]){
                                         break;
                                     }
                                     if(pointList.size()>0){
                                         if(step.end==pointList[0]){
-                                            for(int i1=0;i1<pointList.size();i1++){
+                                            vector<point_int> PL=pointList;
+                                            for(int i1=0;i1<PL.size();i1++){
+                                                point_int nextDir={PL[(i1+1)%PL.size()].x-PL[i1].x,
+                                                                    PL[(i1+1)%PL.size()].y-PL[i1].y};
+                                                int dirTest=2*nextDir.y+nextDir.x;
                                                 int i3=-1;
-                                                for(int i2=i1+1;i2<pointList.size();i2++){
-                                                    if(pointList[i1].y!=pointList[i2].y) continue;
+                                                for(int i2=i1+1;i2<PL.size();i2++){
+                                                    if(PL[i1].y!=PL[i2].y) continue;
+                                                    if(PL[i2].x-PL[i1].x<=0 && dirTest<0 ||
+                                                        PL[i2].x-PL[i1].x>=0 && dirTest>0 ) continue;
                                                     if(i3==-1){
                                                         i3=i2;
                                                     }else{
-                                                        if(std::abs(pointList[i1].x-pointList[i2].x)<std::abs(pointList[i1].x-pointList[i3].x)){
+                                                        if(std::abs(PL[i1].x-PL[i2].x)<std::abs(PL[i1].x-PL[i3].x)){
                                                             i3=i2;
                                                         }
                                                     }
                                                 }
-                                                if(i3!=-1){
-                                                    for(int x=std::min(pointList[i1].x,pointList[i3].x);
-                                                        x<std::max(pointList[i1].x,pointList[i3].x);x++){
-                                                            setMap(x,pointList[i1].y,0,topMap);
-                                                    }
-                                                    pointList.erase(pointList.begin()+i3);
-                                                    pointList.erase(pointList.begin()+i1);
-                                                    i1-=1;
+                                                if(i3==-1) continue;
+
+                                                for(int x=std::min(PL[i1].x,PL[i3].x);
+                                                    x<=std::max(PL[i1].x,PL[i3].x);x++){
+                                                        setMap(x,PL[i1].y,0,topMap);
                                                 }
+                                                
+                                            }
+                                            
+                                            point_int pEnd=o.end, pStart=o.start;
+                                            correctOpening(&o,10);
+                                            if(o.start==pStart && o.end==pEnd){
+                                                for(int m=0;m<pointList.size();m++){
+                                                    ObjectFilterLookup[pointList[m].x][pointList[m].y]=true;
+                                                }
+                                                break;
                                             }
                                             sids-=1;
-                                            correctOpening(&o,10);
-                                            ObjectFilterLookup[step.end.x][step.end.y]=true;
                                             break;
-                                        }else{
-                                            ObjectFilterLookup[step.end.x][step.end.y]=true;
+                                        }
+                                    }
+                                    if(s==objectFilterMaxStep){
+                                        for(int m=0;m<pointList.size();m++){
+                                            ObjectFilterLookup[pointList[m].x][pointList[m].y]=true;
                                         }
                                     }
                                     pointList.push_back(step.end);
@@ -792,7 +807,6 @@ class TopologyMapping{
             }
         }
         pubTopoMap.publish(topoMapMsg);
-
     }
 };
 

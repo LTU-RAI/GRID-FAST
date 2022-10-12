@@ -8,15 +8,20 @@ class TopologyMapping{
         ros::Subscriber subOccupancyMap;
         ros::Subscriber subOpeningList;
         //pub
+        ros::Publisher pubMapDebug;
         ros::Publisher pubTopoPoly_debug;
         ros::Publisher pubTopoPoly;
         ros::Publisher pubRobotPath;
         ros::Publisher pubMarkDel;
+
+        //msg
+        nav_msgs::OccupancyGrid topoMapMsg;
         visualization_msgs::Marker markDel;
 
 
         //Map
         int **topMap;
+        int **debugMap;
         Poligon_list *poly_list=NULL;
         poligon poly;
         
@@ -30,24 +35,48 @@ class TopologyMapping{
         TopologyMapping(){
             subOccupancyMap= nh.subscribe("/topology_map_filterd",1,&TopologyMapping::updateMap, this);
             subOpeningList= nh.subscribe("/opening_list_int",1,&TopologyMapping::updateOplist, this);
+            pubMapDebug=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_debug",5);
             pubTopoPoly_debug=nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly_opening",5);
             pubRobotPath=nh.advertise<visualization_msgs::MarkerArray>("/topology_robot_path",5);
             pubTopoPoly=nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly",5);
             loadMemory();
+            initializeTopoMap();
         }
+    
+    void initializeTopoMap(){
+        topoMapMsg.header.frame_id = "map";
+        topoMapMsg.info.width = mapSize;
+        topoMapMsg.info.height = mapSize;
+        topoMapMsg.info.resolution = resolution;
+        
+        topoMapMsg.info.origin.orientation.x = 0.0;
+        topoMapMsg.info.origin.orientation.y = 0.0;
+        topoMapMsg.info.origin.orientation.z = 0.0;
+        topoMapMsg.info.origin.orientation.w = 1.0;
+
+        topoMapMsg.info.origin.position.x = mapOffsetX;
+        topoMapMsg.info.origin.position.y = mapOffsetY;
+        topoMapMsg.info.origin.position.z = mapHight+1; //for visualization
+
+        topoMapMsg.data.resize(topoMapMsg.info.width * topoMapMsg.info.height);
+        std::fill(topoMapMsg.data.begin(), topoMapMsg.data.end(), -1);
+    }
         
     //Load all maps into the memory
     void loadMemory(){
         oplist.reserve(400);
         //alocate for Maps
         topMap=new int*[mapSize];
+        debugMap=new int*[mapSize];
         for(int i=0;i<mapSize;i++){
             topMap[i]=new int[mapSize];
+            debugMap[i]=new int[mapSize];
         }
         
         for (int i = 0; i < mapSize; ++i){
             for (int j = 0; j < mapSize; ++j){
                 topMap[i][j] = -1;
+                debugMap[i][j] = -1;
             }
         }
     }
@@ -156,6 +185,7 @@ class TopologyMapping{
 
     void creat_poligon_area(int polyIndex){
         vector<point_int> points;
+        vector<point_int> points_desplay;
         int oIndex=poly_list->poly[polyIndex].sidesIndex[0];
         for(int sIndex=0;sIndex<poly_list->poly[polyIndex].sidesIndex.size();sIndex++){
             ant_data step_info;
@@ -165,18 +195,24 @@ class TopologyMapping{
             step_info.dir={0,0};
             for(int s=0; s<=sercheLenthAntConect; s++){
                 //don't save all point to save on resources
+                points.push_back(step_info.end);
                 if(rezCounter>=poligonRez){
                     rezCounter=0;
-                    points.push_back(step_info.end);
+                    points_desplay.push_back(step_info.end);
                 }else{
                     rezCounter+=1;
                 }
-                
-                int newOIndex=check_and_get_opening(step_info.end,2,false);
+                int newOIndex=-1;
+                for(int i=0;i<poly_list->poly[polyIndex].sidesIndex.size();i++){
+                    if(step_info.end==oplist[poly_list->poly[polyIndex].sidesIndex[i]].end){
+                        newOIndex=poly_list->poly[polyIndex].sidesIndex[i];
+                    }
+                }
                 if(newOIndex!=-1){
-                    points.push_back(step_info.end);
-                    vector<point_int> np=fillPoints(oplist[newOIndex].end,oplist[newOIndex].start,poligonRez);
+                    points_desplay.push_back(step_info.end);
+                    vector<point_int> np=fillPoints(oplist[newOIndex].end,oplist[newOIndex].start,0.7,true);
                     for(int i=0;i<np.size();i++) points.push_back(np[i]);
+                    points_desplay.push_back(np[np.size()-1]);
                     oIndex=newOIndex;
                     break;
                 }
@@ -184,6 +220,7 @@ class TopologyMapping{
             }                        
         }
         poly_list->poly[polyIndex].poligon_points=points;
+        poly_list->poly[polyIndex].poligon_points_desplay=points_desplay;
     }
 
     point_int get_poligon_center(vector<point_int> sList){
@@ -233,6 +270,7 @@ class TopologyMapping{
                 //poly is a temp variable holding the information that will be appended to poligon_list 
                 bool cw=true;
                 poly.poligon_points.clear();
+                poly.poligon_points_desplay.clear();
                 poly.sidesIndex.clear();
                 poly.inactiv=false;
                 poly.path=false;
@@ -430,6 +468,7 @@ class TopologyMapping{
                 //set init. val. for all var:s needed.
                 //poly is a temp variable holding the information that will be appended to poligon_list 
                 poly.poligon_points.clear();
+                poly.poligon_points_desplay.clear();
                 poly.sidesIndex.clear();
                 poly.inactiv=false;
                 poly.path=true;
@@ -442,7 +481,7 @@ class TopologyMapping{
                 int opIndex, firstOpIndex=-2, pathType=0;
                 opening currentOpening=oplist[i];
                 int countExtraPaths=0;
-
+                poly.poligon_points=fillPoints(currentOpening.start,currentOpening.end,0.7,true);
                 for(int sids=0; sids<2 && !check; sids++){
                     int max_emty_cells=0;
                     int empty_cell_count=0;
@@ -453,15 +492,16 @@ class TopologyMapping{
                         step_info.end=currentOpening.start;
                     }
                     point_int firstPos=step_info.end;
-                    poly.add_point(step_info.end,cw);
+                    poly.add_point_d(step_info.end,cw);
                     int rezCounter=0;
                     
                     step_info.dir={0,0};
                     for(int s=0; s<=sercheLenthAntConect; s++){
+                        poly.add_point(step_info.end,cw);
                         //don't save all point to save on resources
                         if(rezCounter>=poligonRezPath){
                             rezCounter=0;
-                            poly.add_point(step_info.end,cw);
+                            poly.add_point_d(step_info.end,cw);
                         }else{
                             rezCounter+=1;
                         }
@@ -478,7 +518,7 @@ class TopologyMapping{
                         if(opIndex!=-1 || s==sercheLenthAntConect){
                             if(oplist[opIndex].parent_poligon>=0){
                                 oplist[opIndex].conected_to_path=-2;
-                                poly.add_point(step_info.end,cw);
+                                poly.add_point_d(step_info.end,cw);
 
                                 if(cw){
                                     firstOpIndex=opIndex;
@@ -497,7 +537,11 @@ class TopologyMapping{
                                     }
                                     break;
                                 }else{
-                                    if(opIndex!=-1) poly.sidesIndex.push_back(opIndex);
+                                    if(opIndex!=-1){
+                                        poly.sidesIndex.push_back(opIndex);
+                                        vector<point_int> p=fillPoints(oplist[opIndex].end,oplist[opIndex].start,0.7,true);
+                                        for(int n=0; n<p.size();n++) poly.add_point(p[n],cw);
+                                    }
                                     if(opIndex!=firstOpIndex){
                                         //ROS_INFO("Warning, path with more than two connection!");
                                         pathType=4;
@@ -576,46 +620,171 @@ class TopologyMapping{
         }
     }
 
-    void getPathVectors(int polyIndex, vector<point_int> *v1,vector<point_int> *v2,opening *start, opening *end=NULL){
-        if(poly_list->poly[polyIndex].path){
-            start->flip();
-            if(end!=NULL) end->flip();
-        }
-        point_int v1Index={-1,-1}, v2Index={-1,-1};
-        int size=poly_list->poly[polyIndex].poligon_points.size();
-        for(int i=0; i<size;i++){
-            point_int p=poly_list->poly[polyIndex].poligon_points[i];
-            if(p==start->start) v1Index.x=i;
-            if(p==start->end) v2Index.x=i;
-            if(end==NULL) continue;
-            if(p==end->end) v1Index.y=i;
-            if(p==end->start) v2Index.y=i;
-        }
-        if(v1Index.y==-1){
-            int l=0;
-            if(v1Index.x>v2Index.x){
-                l=v1Index.x-v2Index.x;
-            }else{
-                l=size-(v2Index.x-v1Index.x);
+    vector<point_int> generate_voronoi(int pIndex, point_int start, point_int end={-1,-1}){
+        vector<point_int> PL=poly_list->poly[pIndex].poligon_points;
+        for(int i1=0;i1<PL.size();i1++){
+            point_int nextDir={PL[(i1+1)%PL.size()].x-PL[i1].x,
+                                PL[(i1+1)%PL.size()].y-PL[i1].y};
+            int dirTest=2*nextDir.y-nextDir.x;
+            int i3=-1;
+            for(int i2=i1+1;i2<PL.size();i2++){
+                if(PL[i1].y!=PL[i2].y) continue;
+                if(PL[i2].x-PL[i1].x>=0 && dirTest<0 ||
+                    PL[i2].x-PL[i1].x<=0 && dirTest>0 ) continue;
+                if(i3==-1){
+                    i3=i2;
+                }else{
+                    if(std::abs(PL[i1].x-PL[i2].x)<std::abs(PL[i1].x-PL[i3].x)){
+                        i3=i2;
+                    }
+                }
             }
-            v1Index.y=(v1Index.x+(size-l)/2)%size;
-            v2Index.y=(v2Index.x-(size-l)/2)%size;
-            if(v2Index.y<0) v2Index.y+=size;
+            if(i3==-1) continue;
+
+            for(int x=std::min(PL[i1].x,PL[i3].x);
+                x<=std::max(PL[i1].x,PL[i3].x);x++){
+                    setMap(x,PL[i1].y,100,debugMap);
+            }
         }
-        for(int i=v1Index.x;i!=(v1Index.y+1)%size;i=(i+1)%size){
-            v1->push_back(poly_list->poly[polyIndex].poligon_points[i]);
+        point_int maxP={-1,-1},minP={-1,-1};
+        for(int n=0;n<PL.size();n++){
+            setMap(PL[n].x,PL[n].y,0,debugMap);
+            if(PL[n].x>maxP.x) maxP.x=PL[n].x;
+            if(PL[n].y>maxP.y) maxP.y=PL[n].y;
+            if(PL[n].x<minP.x || minP.x==-1) minP.x=PL[n].x;
+            if(PL[n].y<minP.y || minP.y==-1) minP.y=PL[n].y;
         }
-        for(int i=v2Index.x;i!=(v2Index.y-1<0?size-1:v2Index.y-1);i=i-1<0?size-1:i-1){
-            v2->push_back(poly_list->poly[polyIndex].poligon_points[i]);
+        setMap(start.x,start.y,100,debugMap);
+        setMap(end.x,end.y,100,debugMap);
+        maxP={maxP.x+1,maxP.y+1};
+        minP={minP.x-1,minP.y-1};
+        point_int P[]={{0,0},{-1,0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0}};
+        bool check=false;
+        while(!check){
+            for(int sids=0;sids<2;sids++){
+                vector<point_int> M;
+                for(int i=minP.x;i<=maxP.x;i++){
+                    for(int j=minP.y;j<=maxP.y;j++){
+                        point_int rp={i,j};
+                        if(getMap(i,j,debugMap)!=100 ||
+                           rp==start || rp==end)continue;
+                        int B=0;
+                        for(int pIndex=1; pIndex<9;pIndex++){
+                            if(getMap(i+P[pIndex].x,j+P[pIndex].y,debugMap)==100) B+=1;
+                        }
+                        if(B<2 || B>6) continue;
+
+                        int A=0;
+                        for(int pIndex=1; pIndex<9;pIndex++){
+                            if(getMap(i+P[pIndex].x,j+P[pIndex].y,debugMap)!=100 &&
+                               getMap(i+P[pIndex+1].x,j+P[pIndex+1].y,debugMap)==100) A+=1;
+                        }
+                        if(A!=1) continue;
+                        int c[]={1,3,5};
+                        int d[]={3,4,7};
+                        if(sids==1){
+                            c[0]=1; c[1]=3; c[2]=7;
+                            d[0]=1; d[1]=5; d[2]=7;
+                        }
+                        bool t=true;
+                        for(int cIndex=0;cIndex<3;cIndex++){
+                            if(getMap(i+P[c[cIndex]].x,j+P[c[cIndex]].y,debugMap)!=100){
+                                t=false;
+                                break;
+                            }
+                        }
+                        if(t) continue;
+
+                        t=true;
+                        for(int dIndex=0;dIndex<3;dIndex++){
+                            if(getMap(i+P[d[dIndex]].x,j+P[d[dIndex]].y,debugMap)!=100){
+                                t=false;
+                                break;
+                            }
+                        }
+                        if(t) continue;
+
+                        M.push_back(rp);
+                    }
+                }
+                if(M.size()==0){
+                    check=true;
+                    break;
+                }else{
+                    for(int i=0;i<M.size();i++){
+                        setMap(M[i].x,M[i].y,-1,debugMap);
+                    }
+                }
+            }
         }
 
-        if(poly_list->poly[polyIndex].path){
-            start->flip();
-            if(end!=NULL) end->flip();
+        //Get voronoi path
+        point_int P2[]={{-1,0},{0,1},{1,0},{0,-1},{-1,1},{1,1},{1,-1},{-1,-1}};
+        vector<vector<point_int>> paths;
+        paths.resize(1);
+        int cPathIndex=0;
+        point_int curentPoint=start, newPoint=start;
+        paths[cPathIndex].push_back(start);
+        check=false;
+        while (!check){
+            setMap(curentPoint.x,curentPoint.y,0,debugMap);
+            int c=0;
+            bool flip=true;
+            for(int pIndex=0;pIndex<8;pIndex++){
+                if(curentPoint.x+P2[pIndex].x==end.x && curentPoint.y+P2[pIndex].y==end.y){
+                    newPoint={curentPoint.x+P2[pIndex].x,curentPoint.y+P2[pIndex].y};
+                    paths[cPathIndex].push_back(newPoint);
+                    check=true;
+                    break;
+                }
+                if(getMap(curentPoint.x+P2[pIndex].x,curentPoint.y+P2[pIndex].y,topMap)==100) continue;
+                if(getMap(curentPoint.x+P2[pIndex].x,curentPoint.y+P2[pIndex].y,debugMap)==100){
+                    if(pIndex>=4){
+                        if(getMap(curentPoint.x+P2[(pIndex+4)%8].x,curentPoint.y+P2[(pIndex+4)%8].y,topMap)==100 &&
+                           getMap(curentPoint.x+P2[(pIndex+5)%8].x,curentPoint.y+P2[(pIndex+5)%8].y,topMap)==100) continue;
+                    }
+                    c+=1;
+                    if(flip) newPoint={curentPoint.x+P2[pIndex].x,curentPoint.y+P2[pIndex].y};
+                    flip=false;
+                }
+            }
+            if(check) break;
+
+            if(c==0){
+                if(cPathIndex-1<0){
+                    int maxS=-1;
+                    for (int p=0; p<paths.size(); p++){
+                        if(int(paths[p].size())>maxS){
+                            maxS=paths[p].size();
+                            cPathIndex=p;
+                        }
+                    }
+                    check=true;
+                    break;
+                    
+                }else{
+                    cPathIndex-=1;
+                    curentPoint=paths[cPathIndex][paths[cPathIndex].size()-1];
+                    continue;
+                }
+            }else if(c==1){
+                paths[cPathIndex].push_back(newPoint);
+            }else{
+                paths.push_back(paths[cPathIndex]);
+                cPathIndex=paths.size()-1;
+                paths[cPathIndex].push_back(newPoint);
+            }
+            curentPoint=newPoint;
         }
+        return paths[cPathIndex];
     }
 
     void generat_robot_path(){
+        for(int x=0; x<mapSize;x++){
+            for(int y=0;y<mapSize;y++){
+                debugMap[x][y]=-1;
+            }
+        }
         for(int polyIndex=0; polyIndex<poly_list->size(); polyIndex++){
             if(poly_list->poly[polyIndex].inactiv) continue;
 
@@ -640,53 +809,20 @@ class TopologyMapping{
                     np.push_back(o2.end);
                     sideIndex+=1;
                 }else{
-                    vector<point_int> v1, v2;
+                    vector<point_int> vp;
                     if(label==30||label==76){
-                        getPathVectors(polyIndex,&v1,&v2,&oplist[opIndex]);
+                        vp=generate_voronoi(polyIndex,oCenter,center);
                     }else if(label==41||label==52){
-                        v1=poly_list->poly[polyIndex].poligon_points;
-                        for(int i=poly_list->poly[polyIndex].poligon_points.size()-1;i>=0;i-- ){
-                            v2.push_back(poly_list->poly[polyIndex].poligon_points[i]);
-                        }
+                        vp=generate_voronoi(polyIndex,oCenter);
                     }else{
-                        getPathVectors(polyIndex,&v1,&v2,&oplist[opIndex],&oplist[poly_list->poly[polyIndex].sidesIndex[sideIndex+1]]);
+                        vp=generate_voronoi(polyIndex,oCenter,oplist[poly_list->poly[polyIndex].sidesIndex[sideIndex+1]].get_center());
                         sideIndex+=1;
                     }
-                    int i1=0,i2=0;
-                    point_int c={0,0};
-                    if(v1.size()>0 && v2.size()>0){
-                        c.x=(v2[i2].x-v1[i1].x)/2+v1[i1].x;
-                        c.y=(v2[i2].y-v1[i1].y)/2+v1[i1].y;
-                        np.push_back(c);
+                    for(int n=0;n<vp.size();n+=voronoiRez){
+                        np.push_back(vp[n]);
                     }
-                    while((i1!=v1.size()-1 || i2!=v2.size()-1) && v1.size()>0 && v2.size()>0){
-                        if(i1!=v1.size()-1 && i2!=v2.size()-1){
-                            if(dist(v1[i1+1],v2[i2])<dist(v1[i1],v2[i2+1])){
-                                i1+=1;
-                            }else{
-                                i2+=1;
-                            }
-                        }else{
-                            if(i1==v1.size()-1){
-                                i2+=1;
-                            }else{
-                                i1+=1;
-                            }
-                        }
-                        c.x=(v2[i2].x-v1[i1].x)/2+v1[i1].x;
-                        c.y=(v2[i2].y-v1[i1].y)/2+v1[i1].y;
-
-                        if((label==41||label==52)&&(getMap(c.x,c.y,topMap)!=0||v2[i2]==v1[i1])){
-                            break;
-                        }
-
-                        np.push_back(c);
-                        o.start=c;
-                        if((label==30||label==76)&&!checkForWall(o,1,topMap)){
-                            np.push_back(center);
-                            break;
-                        }
-                    }
+                    np.push_back(vp[vp.size()-1]);
+                    
                 }
                 robotPath.push_back(np);
             }
@@ -812,6 +948,14 @@ class TopologyMapping{
             }
         }
         pubRobotPath.publish(msgRobotPath);
+        topoMapMsg.header.stamp = ros::Time::now();
+        for(int y=0; y<mapSize;y++){
+            for(int x=0;x<mapSize;x++){  
+                int index=x+y*mapSize;            
+                topoMapMsg.data[index]=debugMap[x][y];
+            }
+        }
+        pubMapDebug.publish(topoMapMsg);
     }
 };
 

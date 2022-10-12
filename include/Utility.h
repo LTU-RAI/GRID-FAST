@@ -10,23 +10,23 @@
 using namespace std;
 
 //Map setings
-int mapSize=1000;//1824;
+int mapSize=1824;//800;
 float resolution=0.2;
 float mapOffsetX=-200;//-(mapSize*resolution)/2;
 float mapOffsetY=-100;//-(mapSize*resolution)/2;
 float mapHight=0;
 //scan setings
 int scanSize=mapSize;
-int minGroupSize=4;
-int minCoridorSize=5;
+int minGroupSize=2;
+int minCoridorSize=4;
 int cGroupeSize=0;
-int cfilterSize=2;
-int objectFilterMaxStep=30;
+int cfilterSize=3;
+int objectFilterMaxStep=60;
 int groupeNumber=60;
 int numberOfDir=8;
 int numberOfDirFilter=numberOfDir;
 int maxGapDistans=5;
-int extendDevider=4;
+int extendDevider=8;
 int searchLenght=8;
 
 //ant para
@@ -37,6 +37,7 @@ int sercheLenthAntConectPath=2000;
 int maxAntGap=8;
 int poligonRez=4;
 int poligonRezPath=10;
+int voronoiRez=5;
 int minimumSercheLenght=5;
 
 //Debugging
@@ -105,6 +106,7 @@ struct poligon{
     point_int center={0,0};
     vector<int> sidesIndex;
     vector<point_int> poligon_points;
+    vector<point_int> poligon_points_desplay;
     int label=1;
     bool inactiv=false;
     bool path=false;
@@ -113,6 +115,13 @@ struct poligon{
             poligon_points.push_back(p);
         }else{
             poligon_points.insert(poligon_points.begin(),p);
+        }
+    }
+    void add_point_d(point_int p, bool cw){
+        if(cw){
+            poligon_points_desplay.push_back(p);
+        }else{
+            poligon_points_desplay.insert(poligon_points_desplay.begin(),p);
         }
     }
     void add_sideIndex(int index, bool cw){
@@ -141,6 +150,7 @@ struct Poligon_list{
     void clear(){
         for(int i=0;i<poly.size();i++){
             poly[i].poligon_points.clear();
+            poly[i].poligon_points_desplay.clear();
             poly[i].sidesIndex.clear();
         }
         poly.clear();
@@ -155,15 +165,15 @@ struct Poligon_list{
         int MapOrigenX=-mapOffsetX/resolution;
         int MapOrigenY=-mapOffsetY/resolution;
         vector<point_int> points;
-        for(int i=0; i<poly[index].poligon_points.size(); i++){
+        for(int i=0; i<poly[index].poligon_points_desplay.size(); i++){
             bool test=true;
             for(int n=0; n<points.size(); n++){
-                if(poly[index].poligon_points[i]==points[n]){
+                if(poly[index].poligon_points_desplay[i]==points[n]){
                     test=false;
                 }
             }
             if(test){
-                points.push_back(poly[index].poligon_points[i]);
+                points.push_back(poly[index].poligon_points_desplay[i]);
             }
         }
         geometry_msgs::PolygonStamped newPoly;
