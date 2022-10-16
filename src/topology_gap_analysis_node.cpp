@@ -86,7 +86,6 @@ class TopologyMapping{
         while (ros::ok()){
             oplist.clear();
             topologyScan();
-            
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
                 if(oplist[j].label<10){
@@ -97,7 +96,6 @@ class TopologyMapping{
                     }
                 }
             }
-
             //remove openings tags for removal (openings with label>10)
             for(int j=0; j<oplist.size() && !show_removed_openings; j++){
                 if(oplist[j].label>10){
@@ -120,9 +118,7 @@ class TopologyMapping{
                 }
                 
             }
-
             pubMap();
-
             ros::spinOnce();
             rate.sleep();
         }
@@ -159,14 +155,16 @@ class TopologyMapping{
 
     //Get value at original map, at coordinates x and y. using transformation matrix with index angIndex
     int getMapTransform(int **map, const int x,const int y, const int angIndex){
+        if(x<0||x>scanSize-1||y<0||y>scanSize-1) return -1;
         if(mapTransform[angIndex][x][y].x==-1) return -1;
-        return map[mapTransform[angIndex][x][y].x][mapTransform[angIndex][x][y].y];
+        return getMap(mapTransform[angIndex][x][y].x,mapTransform[angIndex][x][y].y,map);
     }
 
     //set value at original map, at coordinates x and y. using transformation matrix with index angIndex
     void setMapTransform(int **map, const int x,const int y, const int angIndex, int value){
+        if(x<0||x>scanSize-1||y<0||y>scanSize-1) return;
         if(mapTransform[angIndex][x][y].x==-1) return;
-        map[mapTransform[angIndex][x][y].x][mapTransform[angIndex][x][y].y]=value;
+        setMap(mapTransform[angIndex][x][y].x,mapTransform[angIndex][x][y].y,value,map);
     }
 
     // initialization of map message
@@ -218,8 +216,8 @@ class TopologyMapping{
             int tIndex=0;
 
             //move points outside a wall 
-            while (topMap[p1->x][p1->y]!=0|| topMap[p1->x+1][p1->y]!=0 && topMap[p1->x-1][p1->y]!=0 &&
-                    topMap[p1->x][p1->y+1]!=0 && topMap[p1->x][p1->y-1]!=0){
+            while (getMap(p1->x,p1->y,topMap)!=0|| getMap(p1->x+1,p1->y,topMap)!=0 && getMap(p1->x-1,p1->y,topMap)!=0 &&
+                    getMap(p1->x,p1->y+1,topMap)!=0 && getMap(p1->x,p1->y-1,topMap)!=0){
                 if(abs(p2->x-p1->x)>abs(p2->y-p1->y)&&abs(p2->x-p1->x)>2){
                     p1->x+=(p2->x-p1->x)<0?-1:1;
                 }
@@ -234,7 +232,7 @@ class TopologyMapping{
             int dirX=0;
             int dirY=1;
             int lenght=0;
-            while(topMap[p1->x+dirX*(lenght+1)][p1->y+dirY*(lenght+1)]==0){
+            while(getMap(p1->x+dirX*(lenght+1),p1->y+dirY*(lenght+1),topMap)==0){
                 if(dirX==0 && dirY==1){
                     dirX=1;
                     dirY=0;
@@ -332,7 +330,6 @@ class TopologyMapping{
                 ObjectFilterLookup[x][y]=false;
             }
         }
-
         for(int angle=0; angle<numberOfDir; angle++){
             //check if this loop cycle should be filtered
             bool filter=numberOfDir%((int)(numberOfDir/numberOfDirFilter))==0;
@@ -425,7 +422,6 @@ class TopologyMapping{
                     scanMapOut[x][y]=-1;
                 }
         }
-
         for(int angle=0; angle<numberOfDir; angle++){
             float rotation=M_PI*angle/numberOfDir;
             for(int i=1;i<scanSize;i++){
@@ -529,7 +525,7 @@ class TopologyMapping{
                             newOpList[newOpList.size()-1].start_is_outside=false;
                         }
                         
-                        int inSearchLenght=40;
+                        int inSearchLenght=searchLenght;
 
                         //rotate point back to original rotation
                         newOpList=rotate_points(newOpList,rotation);
@@ -539,21 +535,20 @@ class TopologyMapping{
                             opening o=newOpList[k];
 
                             if(!correctOpening(&o,10)) continue;
-
                             //remove small objects in the map 
                             for(int sids=0; sids<2;sids++){
                                 ant_data step;
                                 step.end=sids==0?o.end:o.start;
                                 vector<point_int> pointList;
                                 for(int s=0;s<=objectFilterMaxStep;s++){
-                                    step=ant_step(step.end,true,step.dir,topMap);
+                                    step=ant_step(step.end,false,step.dir,topMap);
                                     if(ObjectFilterLookup[step.end.x][step.end.y]){
                                         break;
                                     }
                                     if(pointList.size()>0){
                                         if(step.end==pointList[0]){
-                                            vector<point_int> PL=pointList;
-                                            for(int i1=0;i1<PL.size();i1++){
+                                            fillPoly(pointList,0,topMap);
+                                            /*for(int i1=0;i1<PL.size();i1++){
                                                 point_int nextDir={PL[(i1+1)%PL.size()].x-PL[i1].x,
                                                                     PL[(i1+1)%PL.size()].y-PL[i1].y};
                                                 int dirTest=2*nextDir.y+nextDir.x;
@@ -577,7 +572,7 @@ class TopologyMapping{
                                                         setMap(x,PL[i1].y,0,topMap);
                                                 }
                                                 
-                                            }
+                                            }*/
                                             
                                             point_int pEnd=o.end, pStart=o.start;
                                             correctOpening(&o,10);
@@ -600,7 +595,6 @@ class TopologyMapping{
                                 }
                                 
                             }
-                        
                             if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;
 
                             //remove too small openings

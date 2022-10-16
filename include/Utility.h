@@ -10,24 +10,23 @@
 using namespace std;
 
 //Map setings
-int mapSize=1824;//800;
+int mapSize=790;//800;
 float resolution=0.2;
 float mapOffsetX=-200;//-(mapSize*resolution)/2;
 float mapOffsetY=-100;//-(mapSize*resolution)/2;
 float mapHight=0;
 //scan setings
 int scanSize=mapSize;
-int minGroupSize=2;
-int minCoridorSize=4;
+int minGroupSize=6;
+int minCoridorSize=5;
 int cGroupeSize=0;
-int cfilterSize=3;
-int objectFilterMaxStep=60;
+int cfilterSize=1;
+int objectFilterMaxStep=40;
 int groupeNumber=60;
-int numberOfDir=8;
+int numberOfDir=6;
 int numberOfDirFilter=numberOfDir;
-int maxGapDistans=5;
-int extendDevider=8;
-int searchLenght=8;
+int extendDevider=4;
+int searchLenght=50;
 
 //ant para
 int searchLenghtClean=50;
@@ -37,7 +36,7 @@ int sercheLenthAntConectPath=2000;
 int maxAntGap=8;
 int poligonRez=4;
 int poligonRezPath=10;
-int voronoiRez=5;
+int voronoiRez=6;
 int minimumSercheLenght=5;
 
 //Debugging
@@ -290,15 +289,18 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
         bool check=false;
         if(getMap(start.x+step.dir.x,start.y+step.dir.y,map)==0){
             point_int dir=step.dir;
-            dir=rotate_dir(dir,clockwise);
-            if(getMap(start.x+dir.x,start.y+dir.y,map)==0)
-                check=true;
+            if(dir.x*dir.y!=0){
+                dir=rotate_dir(dir,clockwise);
+                if(getMap(start.x+dir.x,start.y+dir.y,map)==0)
+                    check=true;
+            }else{check=true;}
         }
         if(check){
             step.end.x=start.x+step.dir.x;
             step.end.y=start.y+step.dir.y;
             step.emty_cell=false;
             point_int dir={0,1};
+            step.emty_cell=false;
             for(int e=0;e<4;e++){
                     
                 if(getMap(step.end.x+dir.x,step.end.y+dir.y,map)==-1){
@@ -444,7 +446,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                     opening tOp;
                     tOp.start=!op->start_is_outside?op->start:op->end;
                     tOp.end=search_step.end;
-                    if(checkForWall(tOp,1,map)) continue;
+                    //if(checkForWall(tOp,1,map)) continue;
 
                     for(int k=0; k<s1.size(); k++){
                         if(sides==0){
@@ -498,7 +500,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
                     opening tOp;
                     tOp.start=!op->start_is_outside?op->start:op->end;
                     tOp.end=search_step.end;
-                    if(checkForWall(tOp,1,map)) continue;
+                    //if(checkForWall(tOp,1,map)) continue;
                     for(int k=0; k<s2.size(); k++){
                         if(sides==0){
                             sida2->push_back(s2[k]);
@@ -528,3 +530,116 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
     }
     return returnValue;        
 }
+
+void fillPoly(vector<point_int> PL, int value, int** map){
+    point_int maxP={-1,-1},minP={-1,-1};
+    vector<vector<bool>> newMap;
+    for(int n=0; n<PL.size();n++){
+        if(PL[n].x>maxP.x) maxP.x=PL[n].x;
+        if(PL[n].y>maxP.y) maxP.y=PL[n].y;
+        if(PL[n].x<minP.x || minP.x==-1) minP.x=PL[n].x;
+        if(PL[n].y<minP.y || minP.y==-1) minP.y=PL[n].y;
+    }
+    newMap.resize(maxP.x-minP.x+1);
+    for(int x=0;x<newMap.size();x++){
+        newMap[x].resize(maxP.y-minP.y+1);
+        for(int y=0; y<newMap[x].size();y++) newMap[x][y]=false;
+    }
+
+    for(int n=0; n<PL.size();n++){
+        int dy=PL[(n+1)%PL.size()].y-PL[n].y;
+        if(dy==0) continue;
+        int y=dy==1? PL[n].y:PL[n].y-1;
+        y-=minP.y;
+        for(int x=0;x<=PL[n].x-minP.x;x++){
+            newMap[x][y]=!newMap[x][y];
+        }
+    }
+
+    for(int x=0;x<newMap.size();x++){
+        for(int y=0;y<newMap[x].size();y++){
+            if(newMap[x][y])
+                setMap(x+minP.x,y+minP.y,value,map);
+        }
+    }
+}
+
+/*//Returns int rep calss, 0=North, 1=West, 2=South, 3=East
+int fillClass(int dx, int dy){
+    if(dy>0) return 0;
+
+    if(dy<0) return 2;
+
+    if(dx<0) return 1;
+
+    if(dx>0) return 3;
+
+    return -1;
+
+}
+
+
+void fillPoly(vector<point_int> nPL, int value, int** map){
+    vector<point_int> PL=nPL;
+    for(int i=0;i<nPL.size();i++){
+        PL[i]=nPL[nPL.size()-1-i];
+    }
+    point_int maxP={-1,-1},minP={-1,-1};
+    vector<vector<bool>> newMap;
+    for(int n=0; n<PL.size();n++){
+        if(PL[n].x>maxP.x) maxP.x=PL[n].x;
+        if(PL[n].y>maxP.y) maxP.y=PL[n].y;
+        if(PL[n].x<minP.x || minP.x==-1) minP.x=PL[n].x;
+        if(PL[n].y<minP.y || minP.y==-1) minP.y=PL[n].y;
+    }
+    newMap.resize(maxP.x-minP.x+2);
+    minP.x-=1;
+    for(int x=0;x<newMap.size();x++){
+        newMap[x].resize(maxP.y-minP.y+1);
+        for(int y=0; y<newMap[x].size();y++) newMap[x][y]=false;
+    }
+    int n=0,firstclass, oldclass, newclass;
+    for(; n<PL.size();n++){
+        int dx=PL[(n+1)%PL.size()].x-PL[n].x;
+        int dy=PL[(n+1)%PL.size()].y-PL[n].y;
+        if(dx==0 && dy==0) continue;
+        firstclass=fillClass(dx,dy);
+        n++;
+        oldclass=firstclass;
+        break;
+    }
+    for(; n<PL.size();n++){
+        int dx=PL[(n+1)%PL.size()].x-PL[n].x;
+        int dy=PL[(n+1)%PL.size()].y-PL[n].y;
+        if(dx==0 && dy==0) continue;
+        newclass=fillClass(dx,dy);
+        if(newclass==0 && oldclass==2 ||
+           newclass==2 && oldclass==0){
+            int x=PL[n].x-minP.x;
+            int y=PL[n].y-minP.y;
+            ROS_INFO("1 %i,%i",x,y);
+            newMap[x][y]=!newMap[x][y];
+        }else if((newclass==0 || newclass==1) &&
+                 (oldclass==0 || oldclass==4)){
+                    int y=PL[n].y-minP.y;
+                    for(int x=0;x<=PL[n].x-minP.x;x++){
+                        ROS_INFO("2 %i,%i",x,y);
+                        newMap[x][y]=!newMap[x][y];
+                    }
+        }else if((newclass==2 || newclass==3) &&
+                 (oldclass==1 || oldclass==2)){
+                    int y=PL[n].y-minP.y;
+                    for(int x=0;x<=PL[n].x-minP.x;x++){
+                        ROS_INFO("3 %i,%i",x,y);
+                        newMap[x][y]=!newMap[x][y];
+                    }
+        }
+        oldclass=newclass;
+    }
+    for(int x=0;x<newMap.size();x++){
+        for(int y=0;y<newMap[x].size();y++){
+            if(newMap[x][y])
+                setMap(x+minP.x,y+minP.y,value,map);
+        }
+    }
+}*/

@@ -28,6 +28,7 @@ class TopologyMapping{
         //Global var.
         bool rMap=false, rOpening=false;
         vector<vector<point_int>> robotPath;
+        int oldNodCount=0;
 
 
     public:
@@ -622,7 +623,7 @@ class TopologyMapping{
 
     vector<point_int> generate_voronoi(int pIndex, point_int start, point_int end={-1,-1}){
         vector<point_int> PL=poly_list->poly[pIndex].poligon_points;
-        for(int i1=0;i1<PL.size();i1++){
+        /*for(int i1=0;i1<PL.size();i1++){
             point_int nextDir={PL[(i1+1)%PL.size()].x-PL[i1].x,
                                 PL[(i1+1)%PL.size()].y-PL[i1].y};
             int dirTest=2*nextDir.y-nextDir.x;
@@ -645,10 +646,11 @@ class TopologyMapping{
                 x<=std::max(PL[i1].x,PL[i3].x);x++){
                     setMap(x,PL[i1].y,100,debugMap);
             }
-        }
+        }*/
+        fillPoly(PL,100,debugMap);
         point_int maxP={-1,-1},minP={-1,-1};
         for(int n=0;n<PL.size();n++){
-            setMap(PL[n].x,PL[n].y,0,debugMap);
+            //setMap(PL[n].x,PL[n].y,0,debugMap);
             if(PL[n].x>maxP.x) maxP.x=PL[n].x;
             if(PL[n].y>maxP.y) maxP.y=PL[n].y;
             if(PL[n].x<minP.x || minP.x==-1) minP.x=PL[n].x;
@@ -776,6 +778,13 @@ class TopologyMapping{
             }
             curentPoint=newPoint;
         }
+        for(int x=minP.x;x<=maxP.x;x++){
+            for(int y=minP.y;y<=maxP.y;y++){
+                if(getMap(x,y,debugMap)==100){
+                    setMap(x,y,0,debugMap);
+                }
+            }
+        }
         return paths[cPathIndex];
     }
 
@@ -818,10 +827,17 @@ class TopologyMapping{
                         vp=generate_voronoi(polyIndex,oCenter,oplist[poly_list->poly[polyIndex].sidesIndex[sideIndex+1]].get_center());
                         sideIndex+=1;
                     }
+                    bool toC=false;
                     for(int n=0;n<vp.size();n+=voronoiRez){
                         np.push_back(vp[n]);
+                        o.start=vp[n];
+                        if((label==30||label==76) && !checkForWall(o,1,topMap)){
+                            toC=true;
+                            np.push_back(center);
+                            break;
+                        }
                     }
-                    np.push_back(vp[vp.size()-1]);
+                    if(!toC) np.push_back(vp[vp.size()-1]);
                     
                 }
                 robotPath.push_back(np);
@@ -902,7 +918,11 @@ class TopologyMapping{
             if(poly_list->label[i]==30 || poly_list->label[i]==41 || poly_list->label[i]==76 ) c++;
             pubPolyArray.likelihood[i]=1;
         }
-        ROS_INFO("Node count: %i",c);
+        if(c!=oldNodCount){
+            oldNodCount=c;
+            ROS_INFO("Node count: %i",c);
+        }
+        
         pubTopoPoly.publish(pubPolyArray);
 
         for(int i=0; i<robotPath.size();i++){
