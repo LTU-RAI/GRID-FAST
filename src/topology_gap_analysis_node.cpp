@@ -536,7 +536,7 @@ class TopologyMapping{
 
                             if(!correctOpening(&o,10)) continue;
                             //remove small objects in the map 
-                            for(int sids=0; sids<2;sids++){
+                            for(int sids=0; sids<2 ;sids++){
                                 ant_data step;
                                 step.end=sids==0?o.end:o.start;
                                 vector<point_int> pointList;
@@ -548,31 +548,6 @@ class TopologyMapping{
                                     if(pointList.size()>0){
                                         if(step.end==pointList[0]){
                                             fillPoly(pointList,0,topMap);
-                                            /*for(int i1=0;i1<PL.size();i1++){
-                                                point_int nextDir={PL[(i1+1)%PL.size()].x-PL[i1].x,
-                                                                    PL[(i1+1)%PL.size()].y-PL[i1].y};
-                                                int dirTest=2*nextDir.y+nextDir.x;
-                                                int i3=-1;
-                                                for(int i2=i1+1;i2<PL.size();i2++){
-                                                    if(PL[i1].y!=PL[i2].y) continue;
-                                                    if(PL[i2].x-PL[i1].x<=0 && dirTest<0 ||
-                                                        PL[i2].x-PL[i1].x>=0 && dirTest>0 ) continue;
-                                                    if(i3==-1){
-                                                        i3=i2;
-                                                    }else{
-                                                        if(std::abs(PL[i1].x-PL[i2].x)<std::abs(PL[i1].x-PL[i3].x)){
-                                                            i3=i2;
-                                                        }
-                                                    }
-                                                }
-                                                if(i3==-1) continue;
-
-                                                for(int x=std::min(PL[i1].x,PL[i3].x);
-                                                    x<=std::max(PL[i1].x,PL[i3].x);x++){
-                                                        setMap(x,PL[i1].y,0,topMap);
-                                                }
-                                                
-                                            }*/
                                             
                                             point_int pEnd=o.end, pStart=o.start;
                                             correctOpening(&o,10);
@@ -602,7 +577,6 @@ class TopologyMapping{
                             if(opLenght<minGroupSize){
                                 continue;
                             }
-                            
                             //Move openings point such that they don't overlap another openings points
                             for(int sids=0; sids<2;sids++){
                                 ant_data step;

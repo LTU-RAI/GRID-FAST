@@ -10,14 +10,14 @@
 using namespace std;
 
 //Map setings
-int mapSize=790;//800;
+int mapSize=570;//800;
 float resolution=0.2;
-float mapOffsetX=-200;//-(mapSize*resolution)/2;
-float mapOffsetY=-100;//-(mapSize*resolution)/2;
+float mapOffsetX=0;//-(mapSize*resolution)/2;
+float mapOffsetY=0;//-(mapSize*resolution)/2;
 float mapHight=0;
 //scan setings
 int scanSize=mapSize;
-int minGroupSize=6;
+int minGroupSize=3;
 int minCoridorSize=5;
 int cGroupeSize=0;
 int cfilterSize=1;

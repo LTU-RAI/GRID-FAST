@@ -915,7 +915,7 @@ class TopologyMapping{
         for(int i=0; i<poly_list->size(); i++){
             pubPolyArray.polygons[i]=poly_list->get_polygon(i,mapSize,resolution);
             pubPolyArray.labels[i]=poly_list->label[i];
-            if(poly_list->label[i]==30 || poly_list->label[i]==41 || poly_list->label[i]==76 ) c++;
+            if(poly_list->label[i]==30 || poly_list->label[i]==41 || poly_list->label[i]==76 || poly_list->label[i]==52) c++;
             pubPolyArray.likelihood[i]=1;
         }
         if(c!=oldNodCount){
