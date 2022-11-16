@@ -21,9 +21,8 @@ class TopologyMapping{
         int **scanMap;
         int **scanMapOut;
         int **scanMapOutTransform;
-        scanGroup ***scanGarray;
-        int **scanGroupIndex;
-        point_int ***mapTransform;
+        vector<vector<vector<scanGroup>>> scanGarray;
+        vector<vector<vector<mapTransform>>> mapTransformList;
         
 
 
@@ -34,32 +33,29 @@ class TopologyMapping{
             pubTopoMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_filterd",5);
             pubOpeningList=nh.advertise<topology_mapping::opening_list>("/opening_list_int",5);
             loadMemory();
-            initializeTopoMap();
         }
         
     //Load all maps, and map transforms into the memory
     void loadMemory(){
-
         generateMapTransform();
-
         //Creat all maps in memory
-        ObjectFilterLookup=new bool*[mapSize];
-        scanMap=new int*[mapSize];
-        scanMapOut=new int*[mapSize];
-        scanMapOutTransform=new int*[mapSize];
-        Map=new int*[mapSize];
-        topMap=new int*[mapSize];
-        for(int i=0;i<mapSize;i++){
-            ObjectFilterLookup[i]=new bool[mapSize];
-            Map[i]=new int[mapSize];
-            topMap[i]=new int[mapSize];
-            scanMapOut[i]=new int[mapSize];
-            scanMap[i]=new int[mapSize];
-            scanMapOutTransform[i]=new int[mapSize];
+        ObjectFilterLookup=new bool*[mapSizeX];
+        scanMap=new int*[mapSizeX];
+        scanMapOut=new int*[mapSizeX];
+        scanMapOutTransform=new int*[mapSizeX];
+        Map=new int*[mapSizeX];
+        topMap=new int*[mapSizeX];
+        for(int i=0;i<mapSizeX;i++){
+            ObjectFilterLookup[i]=new bool[mapSizeY];
+            Map[i]=new int[mapSizeY];
+            topMap[i]=new int[mapSizeY];
+            scanMapOut[i]=new int[mapSizeY];
+            scanMap[i]=new int[mapSizeY];
+            scanMapOutTransform[i]=new int[mapSizeY];
         }
         //set in. val. for all maps as -1 
-        for (int i = 0; i < mapSize; ++i){
-            for (int j = 0; j < mapSize; ++j){
+        for (int i = 0; i < mapSizeX; ++i){
+            for (int j = 0; j < mapSizeY; ++j){
                 Map[i][j] = -1;
                 topMap[i][j] = -1;
                 scanMapOut[i][j] = -1;
@@ -67,18 +63,32 @@ class TopologyMapping{
             }
         }
         //Create scanGarray, used for storing gaps in the gap analysis
-        scanGarray=new scanGroup**[numberOfDir];
-        scanGroupIndex=new int*[numberOfDir];
-        for(int i=0; i<numberOfDir; i++){
-            scanGarray[i]=new scanGroup*[scanSize];
-            scanGroupIndex[i]=new int[scanSize];
-            for(int k=0; k<scanSize; k++){
-                scanGarray[i][k]=new scanGroup[groupeNumber];
-                scanGroupIndex[i][k]=0;
-            }
-        }
+        scanGarray.resize(numberOfDir);
+        initializeTopoMap();
     }
+    void unloadMemory(){
 
+        mapTransformList.clear();
+
+        //Creat all maps in memory
+        for(int i=0;i<mapSizeX;i++){
+            delete[] ObjectFilterLookup[i];
+            delete[] Map[i];
+            delete[] topMap[i];
+            delete[] scanMapOut[i];
+            delete[] scanMap[i];
+            delete[] scanMapOutTransform[i];
+        }
+        delete[] ObjectFilterLookup;
+        delete[] scanMap;
+        delete[] scanMapOut;
+        delete[] scanMapOutTransform;
+        delete[] Map;
+        delete[] topMap;
+        
+        //Create scanGarray, used for storing gaps in the gap analysis
+        scanGarray.clear();
+    }
 
     void spin(){
         ros::Rate rate(100); // Hz
@@ -126,52 +136,105 @@ class TopologyMapping{
 
     //pre calculates the rotation transform for the map, this saves on performance.
     void generateMapTransform(){
-        mapTransform= new point_int**[numberOfDir];
+        mapTransformList.resize(numberOfDir);
 
         for(int angle=0; angle<numberOfDir; angle++){
-            mapTransform[angle]=new point_int*[mapSize];
-            for(int i=0; i<mapSize;i++){
-                mapTransform[angle][i]=new point_int[mapSize];
-            }
             //using a 2d rotation matrix to rotate map around its center, original map is -1 extended
             float rotation=M_PI*angle/numberOfDir;
-            float cosA=cos(rotation);
-            float sinA=sin(rotation);
-            int halfMapSize=mapSize/2;
-            for(int x=0;x<mapSize;x++){
-                for(int y=0;y<mapSize;y++){
-                    int newX=int(std::round(((x-halfMapSize) *cosA-(y-halfMapSize)*sinA)))+halfMapSize;
-                    int newY=int(std::round(((x-halfMapSize) *sinA+(y-halfMapSize)*cosA)))+halfMapSize;
-                    if((newX<0||newX>=mapSize)||(newY<0||newY>=mapSize)){
-                        mapTransform[angle][x][y]={-1,-1};
-                    }else{
-                        mapTransform[angle][x][y]={newX,newY};
-                    }
+            float cosA=cos(-rotation);
+            float sinA=sin(-rotation);
+            point_int d1,d2;
+            for(int x=0;x<mapSizeX;x+=mapSizeX-1){
+                for(int y=0;y<mapSizeY;y+=mapSizeY-1){
+                    int newX=int(std::round(((x-mapSizeX/2)*cosA-(y-mapSizeY/2)*sinA)+mapSizeX/2));
+                    int newY=int(std::round(((x-mapSizeX/2)*sinA+(y-mapSizeY/2)*cosA)+mapSizeY/2));
+                    if(x==0 && y==0) d1.x=newY;
+                    if(x==mapSizeX-1 && y==mapSizeY-1) d1.y=newY;
 
+                    if(x==mapSizeX-1 && y==0)d2.x=newY;
+                    if(x==0 && y==mapSizeY-1)d2.y=newY;
                 }
             }
+            int ySize,xSize,yoffset,xoffset;
+            if(std::abs(d2.x-d2.y)<std::abs(d1.x-d1.y)){
+                ySize=std::abs(d1.x-d1.y)+1;
+                yoffset=std::min(d1.x,d1.y);
+                xSize=std::abs(d2.x-d2.y)+1;
+                xoffset=std::min(d2.x,d2.y);
+            }else{
+                ySize=std::abs(d2.x-d2.y)+1;
+                yoffset=std::min(d2.x,d2.y); 
+                xSize=std::abs(d1.x-d1.y)+1;
+                xoffset=std::min(d1.x,d1.y);
+            }
+            vector<vector<mapTransform>> tMap;
+            tMap.resize(ySize);
+            cosA=cos(rotation);
+            sinA=sin(rotation);
+            for(int y=0;y<ySize;y++){
+                for(int x=0;x<xSize;x++){
+                    int newX=int(std::round(((x-xSize/2)*cosA-(y-ySize/2)*sinA)+xSize/2));
+                    int newY=int(std::round(((x-xSize/2)*sinA+(y-ySize/2)*cosA)+ySize/2));
+                    if(newX<0 || newX>=mapSizeX) continue;
+                    if(newY<0 || newY>=mapSizeY) continue;
+                    mapTransform T;
+                    T.rpos.x=newX;
+                    T.rpos.y=newY;
+                    T.tpos.x=x;
+                    T.tpos.y=y;
+                    tMap[y].push_back(T);
+                }
+            }
+            mapTransformList[angle]=tMap;
         }
     }
-
+    
     //Get value at original map, at coordinates x and y. using transformation matrix with index angIndex
     int getMapTransform(int **map, const int x,const int y, const int angIndex){
-        if(x<0||x>scanSize-1||y<0||y>scanSize-1) return -1;
-        if(mapTransform[angIndex][x][y].x==-1) return -1;
-        return getMap(mapTransform[angIndex][x][y].x,mapTransform[angIndex][x][y].y,map);
+        int indexY=y;
+        if(indexY<0||indexY>=mapTransformList[angIndex].size()) return -1;
+        int indexX=x-mapTransformList[angIndex][indexY][0].tpos.x;
+        if(indexX<0||indexX>=mapTransformList[angIndex][indexY].size()) return -1;
+        return getMap(mapTransformList[angIndex][indexY][indexX].rpos.x,mapTransformList[angIndex][indexY][indexX].rpos.y,map);
     }
-
+    
     //set value at original map, at coordinates x and y. using transformation matrix with index angIndex
     void setMapTransform(int **map, const int x,const int y, const int angIndex, int value){
-        if(x<0||x>scanSize-1||y<0||y>scanSize-1) return;
-        if(mapTransform[angIndex][x][y].x==-1) return;
-        setMap(mapTransform[angIndex][x][y].x,mapTransform[angIndex][x][y].y,value,map);
+        int indexY=y;
+        if(indexY<0||indexY>=mapTransformList[angIndex].size()) return;
+        int indexX=x-mapTransformList[angIndex][indexY][0].tpos.x;
+        if(indexX<0||indexX>=mapTransformList[angIndex][indexY].size()) return;
+        setMap(mapTransformList[angIndex][indexY][indexX].rpos.x,mapTransformList[angIndex][indexY][indexX].rpos.y,value,map);
     }
-
+    //rotate all points in op list around the maps center
+    vector<opening> rotate_points(vector<opening> op, const int angIndex){
+        vector<opening> newOp;
+        newOp.resize(op.size());
+        for(int i=0; i<op.size();i++){
+            for(int sids=0; sids<2;sids++){
+                point_int p=op[i].start;
+                if(sids==1){
+                    p=op[i].end;
+                }
+                int indexY=p.y;
+                int indexX=p.x-mapTransformList[angIndex][indexY][0].tpos.x;
+                
+                p=mapTransformList[angIndex][indexY][indexX].rpos;
+                if(sids==0){
+                    newOp[i].start=p;
+                }else{
+                    newOp[i].end=p;
+                }
+            }
+            newOp[i].start_is_outside=op[i].start_is_outside;
+        }
+        return newOp;        
+    }
     // initialization of map message
     void initializeTopoMap(){
         topoMapMsg.header.frame_id = "map";
-        topoMapMsg.info.width = mapSize;
-        topoMapMsg.info.height = mapSize;
+        topoMapMsg.info.width = mapSizeX;
+        topoMapMsg.info.height = mapSizeY;
         topoMapMsg.info.resolution = resolution;
         
         topoMapMsg.info.origin.orientation.x = 0.0;
@@ -191,6 +254,17 @@ class TopologyMapping{
     void updateMap(const nav_msgs::OccupancyGrid& mapMsg){
         int width=mapMsg.info.width;
         int height=mapMsg.info.height;
+        resolution=mapMsg.info.resolution;
+        mapOffsetX=mapMsg.info.origin.position.x;
+        mapOffsetY=mapMsg.info.origin.position.y;
+        if(width!=mapSizeX || height!=mapSizeY){
+            ROS_INFO("Detected a change in map size reinitializes!");
+            unloadMemory();
+            mapSizeX=width;
+            mapSizeY=height;
+            loadMemory();
+        }
+        
         //int mapResolution=mapMsg.occupancy.info.resolution;
         for(int x=0; x<width;x++){
             for(int y=0; y<height;y++){
@@ -216,7 +290,7 @@ class TopologyMapping{
             int tIndex=0;
 
             //move points outside a wall 
-            while (getMap(p1->x,p1->y,topMap)!=0|| getMap(p1->x+1,p1->y,topMap)!=0 && getMap(p1->x-1,p1->y,topMap)!=0 &&
+            while (getMap(p1->x,p1->y,topMap)!=0||getMap(p1->x+1,p1->y,topMap)!=0 && getMap(p1->x-1,p1->y,topMap)!=0 &&
                     getMap(p1->x,p1->y+1,topMap)!=0 && getMap(p1->x,p1->y-1,topMap)!=0){
                 if(abs(p2->x-p1->x)>abs(p2->y-p1->y)&&abs(p2->x-p1->x)>2){
                     p1->x+=(p2->x-p1->x)<0?-1:1;
@@ -324,8 +398,8 @@ class TopologyMapping{
 
     void topologyScan(){
         //set all valus of topMap to -1
-        for(int x=0; x<mapSize;x++){
-            for(int y=0;y<mapSize;y++){
+        for(int x=0; x<mapSizeX;x++){
+            for(int y=0;y<mapSizeY;y++){
                 topMap[x][y]=-1;
                 ObjectFilterLookup[x][y]=false;
             }
@@ -335,61 +409,69 @@ class TopologyMapping{
             bool filter=numberOfDir%((int)(numberOfDir/numberOfDirFilter))==0;
             
             //Clear scanMapOutput from previus scan
-            for (int i = 0; i < scanSize; ++i){
-                scanGroupIndex[angle][i]=0;
-            }
+            scanGarray[angle].clear();
+            scanGarray[angle].resize(mapTransformList[angle].size());
 
-            int cfilter=0;
+            
             //Loop thru all map cells
-            for(int i=0;i<scanSize;i++){
-                for(int j=1;j<scanSize-1;j++){
-
+            for(int i=0;i<mapTransformList[angle].size();i++){
+                scanGroup sg;
+                vector<scanGroup> sgList;
+                int cfilter=0;
+                int cGroupeSize=0;
+                for(int j=0;j<mapTransformList[angle][i].size();j++){
+                    mapTransform mt=mapTransformList[angle][i][j];
                     //Finde groups
-                    if(getMapTransform(Map,i,j,angle)==0){
+                    if(Map[mt.rpos.x][mt.rpos.y]==0){
                         //check if space is free
                         if(cGroupeSize==0){
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].start=j;
+                            sg.start=mt.tpos.x;
                         }
                         cGroupeSize+=1;
                         cfilter=0;
                     //filter out small point obstacles
-                    }else if (getMapTransform(Map,i,j,angle)==-1 && cfilter<cfilterSize && cGroupeSize!=0){
+                    }else if (Map[mt.rpos.x][mt.rpos.y]==-1 && cfilter<cfilterSize && cGroupeSize!=0){
                         cfilter+=1;
                     
                     //if findeing ostacals biger then filter end serche
                     }else if(cGroupeSize!=0){
-                        int endpoint=j-1-cfilter;
+                        int endpoint=mt.tpos.x-1-cfilter;
                         //if found groupe is larger then minGroupSize add it as gap
                         if(cGroupeSize>minGroupSize){
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].end=endpoint;
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].prevGroupIndex=0;
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].prevGroup[0]=NULL;
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].nextGroupIndex=0;
-                            scanGarray[angle][i][scanGroupIndex[angle][i]].nextGroup[0]=NULL;
+                            sg.end=endpoint;
+                            sg.prevGroupIndex=0;
+                            sg.prevGroup[0]=NULL;
+                            sg.nextGroupIndex=0;
+                            sg.nextGroup[0]=NULL;
                             if(filter){
                                 //save filtered values
-                                for(int m=scanGarray[angle][i][scanGroupIndex[angle][i]].start;
-                                    m<endpoint; m++){
-                                        setMapTransform(scanMapOut,i,m,angle,0);
+                                for(int m=sg.start;
+                                    m<=endpoint; m++){
+                                        setMapTransform(scanMapOut,m,i,angle,0);
                                 }
                             }
-                            scanGroupIndex[angle][i]+=1;
+                            sgList.push_back(sg);
 
                         }else if(cGroupeSize>0 && filter){
                             //save filtered values, pads value from the gaps left side  
-                            for(int m=scanGarray[angle][i][scanGroupIndex[angle][i]].start;
-                                m<j-cfilter; m++){
-                                    setMapTransform(scanMapOut,i,m,angle,getMapTransform(Map,i,scanGarray[angle][i][scanGroupIndex[angle][i]].start-1,angle));
+                            int value=100;
+                            if(getMapTransform(Map,sg.start-1,i,angle)==-1 && 
+                                getMapTransform(Map,mt.tpos.x-cfilter,i,angle)==-1){
+                                    value=-1;
+                                }
+                            for(int m=sg.start;
+                                m<mt.tpos.x-cfilter; m++){
+                                    setMapTransform(scanMapOut,m,i,angle,value);
                             }
                         }
                         cfilter=0;
                         cGroupeSize=0;
                     }
                 }
-
-                for(int index1=0;index1<scanGroupIndex[angle][i];index1++){
+                scanGarray[angle][i]=sgList;
+                for(int index1=0;index1<scanGarray[angle][i].size() && i!=0;index1++){
                     //find if there is tow or more gropse conecteing to a previus group
-                    for(int index2=0;index2<scanGroupIndex[angle][i-1];index2++){
+                    for(int index2=0;index2<scanGarray[angle][i-1].size();index2++){
                         if(scanGarray[angle][i][index1].start<scanGarray[angle][i-1][index2].end &&
                             scanGarray[angle][i][index1].end>scanGarray[angle][i-1][index2].start){
                                 scanGarray[angle][i][index1].prevGroup[scanGarray[angle][i][index1].prevGroupIndex]=&scanGarray[angle][i-1][index2];
@@ -402,8 +484,8 @@ class TopologyMapping{
                 }
             }
             if(filter){              
-                for(int x=0; x<mapSize;x++){
-                    for(int y=0;y<mapSize;y++){
+                for(int x=0; x<mapSizeX;x++){
+                    for(int y=0;y<mapSizeY;y++){
                         if(scanMapOut[x][y]!=-1){
                             topMap[x][y]=(scanMapOut[x][y]>=70 || topMap[x][y]>=70)?100:0;
                         }
@@ -413,8 +495,8 @@ class TopologyMapping{
             }  
         }
         //merge Map into topMap
-        for(int x=0; x<mapSize;x++){
-                for(int y=0;y<mapSize;y++){
+        for(int x=0; x<mapSizeX;x++){
+                for(int y=0;y<mapSizeY;y++){
                     if(topMap[x][y]!=-1 || Map[x][y]!=-1){
                         topMap[x][y]=(Map[x][y]>=70 || topMap[x][y]>=70)?100:0;
                     }
@@ -424,8 +506,8 @@ class TopologyMapping{
         }
         for(int angle=0; angle<numberOfDir; angle++){
             float rotation=M_PI*angle/numberOfDir;
-            for(int i=1;i<scanSize;i++){
-                for(int index= 0; index<scanGroupIndex[angle][i];index++){
+            for(int i=1;i<mapTransformList[angle].size();i++){
+                for(int index= 0; index<scanGarray[angle][i].size();index++){
                     for(int direction=0;direction<2;direction++){
                         //If the gap has less than two connections then skip this gap.
                         if(scanGarray[angle][i][index].prevGroupIndex<2 &&direction==0||
@@ -447,7 +529,6 @@ class TopologyMapping{
                         }
                         
                         if(depthCount<minCoridorSize) continue;
-
                         //check the depth of each gap connected to original gap
                         vector<opening> newOpList;
                         int loopAmount=scanGarray[angle][i][index].prevGroupIndex;
@@ -482,11 +563,12 @@ class TopologyMapping{
                                     int bigestLenght=-1;
                                     int firstP=-1;
                                     for(int y=S;y<=E; y++){
-                                        if(getMapTransform(topMap,i,y,angle)==0 && firstP==-1){
+                                        if(getMapTransform(topMap,y,i,angle)==0 && firstP==-1){
                                             firstP=y;
                                         }
-                                        if(getMapTransform(topMap,i,y,angle)!=0 && firstP!=-1){
+                                        if(getMapTransform(topMap,y,i,angle)!=0 && firstP!=-1){
                                             if(y-1-firstP>bigestLenght){
+                                                bigestLenght=y-1-firstP;
                                                 newStart=firstP;
                                                 newEnd=y-1;
                                                 firstP=-1;
@@ -496,11 +578,11 @@ class TopologyMapping{
 
                                     opening newOp;
                                     if(direction==0){
-                                        newOp.start={i,newEnd};
-                                        newOp.end={i,newStart};
+                                        newOp.start={newEnd,i};
+                                        newOp.end={newStart,i};
                                     }else{
-                                        newOp.start={i,newStart};
-                                        newOp.end={i,newEnd};
+                                        newOp.start={newStart,i};
+                                        newOp.end={newEnd,i};
                                     }
                                     newOpList.push_back(newOp);
                                     break;
@@ -528,12 +610,10 @@ class TopologyMapping{
                         int inSearchLenght=searchLenght;
 
                         //rotate point back to original rotation
-                        newOpList=rotate_points(newOpList,rotation);
-
+                        newOpList=rotate_points(newOpList,angle);
 
                         for(int k=0; k<newOpList.size();k++){
                             opening o=newOpList[k];
-
                             if(!correctOpening(&o,10)) continue;
                             //remove small objects in the map 
                             for(int sids=0; sids<2 ;sids++){
@@ -601,7 +681,6 @@ class TopologyMapping{
                                 }
                             }
                             bool skip=false;
-
                         //Check if opening is overlapping another opening.
                         for(int h=0; h<oplist.size() && !skip && o.label<10; h++){
                                 opening oplistComp=oplist[h];
@@ -732,7 +811,6 @@ class TopologyMapping{
                                     }
                                 }
                             }
-
                             if(skip)o.label=16;//Removed because overlap couldn't be solved
 
                             if(dist(o.start,o.end)<minGroupSize){
@@ -746,7 +824,6 @@ class TopologyMapping{
                                     o.label=14;
                                 }
                             }
-
                             oplist.push_back(o);
                         } 
                     }
@@ -768,9 +845,9 @@ class TopologyMapping{
         }
         pubOpeningList.publish(OpeningListMsg);
         topoMapMsg.header.stamp = ros::Time::now();
-        for(int y=0; y<mapSize;y++){
-            for(int x=0;x<mapSize;x++){  
-                int index=x+y*mapSize;            
+        for(int y=0; y<mapSizeY;y++){
+            for(int x=0;x<mapSizeX;x++){  
+                int index=x+y*mapSizeX;            
                 topoMapMsg.data[index]=topMap[x][y];
             }
         }

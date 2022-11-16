@@ -10,16 +10,15 @@
 using namespace std;
 
 //Map setings
-int mapSize=570;//800;
-float resolution=0.2;
+int mapSizeX=10;//800;
+int mapSizeY=10;//800;
+float resolution=0;
 float mapOffsetX=0;//-(mapSize*resolution)/2;
 float mapOffsetY=0;//-(mapSize*resolution)/2;
 float mapHight=0;
 //scan setings
-int scanSize=mapSize;
 int minGroupSize=3;
-int minCoridorSize=5;
-int cGroupeSize=0;
+int minCoridorSize=4;
 int cfilterSize=1;
 int objectFilterMaxStep=40;
 int groupeNumber=60;
@@ -65,6 +64,10 @@ struct point_int{
         p.y=(y-offset)*resulution;
         return p;
     }
+};
+
+struct mapTransform{
+    point_int tpos, rpos;
 };
 
 double dist(point_int p1, point_int p2){
@@ -160,7 +163,7 @@ struct Poligon_list{
         return poly.size();
     }
 
-    geometry_msgs::PolygonStamped get_polygon(int index, int sizeMap, float resolution, double z=0.1){
+    geometry_msgs::PolygonStamped get_polygon(int index, float resolution, double z=0.1){
         int MapOrigenX=-mapOffsetX/resolution;
         int MapOrigenY=-mapOffsetY/resolution;
         vector<point_int> points;
@@ -199,46 +202,17 @@ struct ant_data{
 vector<opening> oplist;
 
 int getMap(int x, int y,int **map){
-    if(x<0||x>mapSize) return -1;
-    if(y<0||y>mapSize) return -1;
+    if(x<0||x>mapSizeX) return -1;
+    if(y<0||y>mapSizeY) return -1;
 
     return map[x][y];
 }
 
 void setMap(int x, int y,int value,int **map){
-    if(x<0||x>mapSize) return;
-    if(y<0||y>mapSize) return;
+    if(x<0||x>mapSizeX) return;
+    if(y<0||y>mapSizeY) return;
 
     map[x][y]=value;
-}
-
-//rotate all points in op list around the maps center
-vector<opening> rotate_points(vector<opening> op, const double rotation){
-    vector<opening> newOp;
-    newOp.resize(op.size());
-    float cosA=cos(rotation);
-    float sinA=sin(rotation);
-    int halfMapSize=mapSize/2;
-    for(int i=0; i<op.size();i++){
-        for(int sids=0; sids<2;sids++){
-            point_int p=op[i].start;
-            if(sids==1){
-                p=op[i].end;
-            }
-            //using a 2d rotation matrix to rotate points
-            int newX=int(std::round(((p.x-halfMapSize) *cosA-(p.y-halfMapSize)*sinA)))+halfMapSize;
-            int newY=int(std::round(((p.x-halfMapSize) *sinA+(p.y-halfMapSize)*cosA)))+halfMapSize;
-            p.x=newX;
-            p.y=newY;
-            if(sids==0){
-                newOp[i].start=p;
-            }else{
-                newOp[i].end=p;
-            }
-        }
-        newOp[i].start_is_outside=op[i].start_is_outside;
-    }
-    return newOp;        
 }
 
 //suport function for ant_step rotates the dir 
@@ -545,17 +519,16 @@ void fillPoly(vector<point_int> PL, int value, int** map){
         newMap[x].resize(maxP.y-minP.y+1);
         for(int y=0; y<newMap[x].size();y++) newMap[x][y]=false;
     }
-
     for(int n=0; n<PL.size();n++){
         int dy=PL[(n+1)%PL.size()].y-PL[n].y;
         if(dy==0) continue;
         int y=dy==1? PL[n].y:PL[n].y-1;
         y-=minP.y;
+        if(y<0) continue;
         for(int x=0;x<=PL[n].x-minP.x;x++){
             newMap[x][y]=!newMap[x][y];
         }
     }
-
     for(int x=0;x<newMap.size();x++){
         for(int y=0;y<newMap[x].size();y++){
             if(newMap[x][y])

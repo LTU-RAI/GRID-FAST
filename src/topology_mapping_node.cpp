@@ -41,13 +41,12 @@ class TopologyMapping{
             pubRobotPath=nh.advertise<visualization_msgs::MarkerArray>("/topology_robot_path",5);
             pubTopoPoly=nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly",5);
             loadMemory();
-            initializeTopoMap();
         }
     
     void initializeTopoMap(){
         topoMapMsg.header.frame_id = "map";
-        topoMapMsg.info.width = mapSize;
-        topoMapMsg.info.height = mapSize;
+        topoMapMsg.info.width = mapSizeX;
+        topoMapMsg.info.height = mapSizeY;
         topoMapMsg.info.resolution = resolution;
         
         topoMapMsg.info.origin.orientation.x = 0.0;
@@ -67,19 +66,29 @@ class TopologyMapping{
     void loadMemory(){
         oplist.reserve(400);
         //alocate for Maps
-        topMap=new int*[mapSize];
-        debugMap=new int*[mapSize];
-        for(int i=0;i<mapSize;i++){
-            topMap[i]=new int[mapSize];
-            debugMap[i]=new int[mapSize];
+        topMap=new int*[mapSizeX];
+        debugMap=new int*[mapSizeX];
+        for(int i=0;i<mapSizeX;i++){
+            topMap[i]=new int[mapSizeY];
+            debugMap[i]=new int[mapSizeY];
         }
         
-        for (int i = 0; i < mapSize; ++i){
-            for (int j = 0; j < mapSize; ++j){
+        for (int i = 0; i < mapSizeX; ++i){
+            for (int j = 0; j < mapSizeY; ++j){
                 topMap[i][j] = -1;
                 debugMap[i][j] = -1;
             }
         }
+        initializeTopoMap();
+    }
+    void unloadMemory(){
+        //alocate for Maps
+        for(int i=0;i<mapSizeX;i++){
+            delete[] topMap[i];
+            delete[] debugMap[i];
+        }
+        delete[] topMap;
+        delete[] debugMap;
     }
 
 
@@ -99,11 +108,10 @@ class TopologyMapping{
                 if(oplist.size()>0){
                     creatPoligonList();
 
-                    if(poly_list->size()>0){
+                    if(poly_list->size()>0){;
                         creatPathPoligons();
                         generat_robot_path();
                     }
-                
                     //remove unused openings
                     for(int b=0; b<oplist.size(); b++){
                         if(oplist[b].parent_poligon<0 && oplist[b].label<10){
@@ -155,6 +163,16 @@ class TopologyMapping{
     void updateMap(const nav_msgs::OccupancyGrid& mapMsg){
         int width=mapMsg.info.width;
         int height=mapMsg.info.height;
+        resolution=mapMsg.info.resolution;
+        mapOffsetX=mapMsg.info.origin.position.x;
+        mapOffsetY=mapMsg.info.origin.position.y;
+        if(width!=mapSizeX || height!=mapSizeY){
+            unloadMemory();
+            mapSizeX=width;
+            mapSizeY=height;
+            loadMemory();
+        }
+
         //int mapResolution=mapMsg.occupancy.info.resolution;
         for(int x=0; x<width;x++){
             for(int y=0; y<height;y++){
@@ -623,30 +641,6 @@ class TopologyMapping{
 
     vector<point_int> generate_voronoi(int pIndex, point_int start, point_int end={-1,-1}){
         vector<point_int> PL=poly_list->poly[pIndex].poligon_points;
-        /*for(int i1=0;i1<PL.size();i1++){
-            point_int nextDir={PL[(i1+1)%PL.size()].x-PL[i1].x,
-                                PL[(i1+1)%PL.size()].y-PL[i1].y};
-            int dirTest=2*nextDir.y-nextDir.x;
-            int i3=-1;
-            for(int i2=i1+1;i2<PL.size();i2++){
-                if(PL[i1].y!=PL[i2].y) continue;
-                if(PL[i2].x-PL[i1].x>=0 && dirTest<0 ||
-                    PL[i2].x-PL[i1].x<=0 && dirTest>0 ) continue;
-                if(i3==-1){
-                    i3=i2;
-                }else{
-                    if(std::abs(PL[i1].x-PL[i2].x)<std::abs(PL[i1].x-PL[i3].x)){
-                        i3=i2;
-                    }
-                }
-            }
-            if(i3==-1) continue;
-
-            for(int x=std::min(PL[i1].x,PL[i3].x);
-                x<=std::max(PL[i1].x,PL[i3].x);x++){
-                    setMap(x,PL[i1].y,100,debugMap);
-            }
-        }*/
         fillPoly(PL,100,debugMap);
         point_int maxP={-1,-1},minP={-1,-1};
         for(int n=0;n<PL.size();n++){
@@ -789,14 +783,13 @@ class TopologyMapping{
     }
 
     void generat_robot_path(){
-        for(int x=0; x<mapSize;x++){
-            for(int y=0;y<mapSize;y++){
+        for(int x=0; x<mapSizeX;x++){
+            for(int y=0;y<mapSizeY;y++){
                 debugMap[x][y]=-1;
             }
         }
         for(int polyIndex=0; polyIndex<poly_list->size(); polyIndex++){
             if(poly_list->poly[polyIndex].inactiv) continue;
-
             for(int sideIndex=0; sideIndex<poly_list->poly[polyIndex].sidesIndex.size();sideIndex++){
                 int label=poly_list->label[polyIndex];
                 int opIndex=poly_list->poly[polyIndex].sidesIndex[sideIndex];
@@ -913,7 +906,7 @@ class TopologyMapping{
         pubPolyArray.likelihood.resize(poly_list->size());
         int c=0;
         for(int i=0; i<poly_list->size(); i++){
-            pubPolyArray.polygons[i]=poly_list->get_polygon(i,mapSize,resolution);
+            pubPolyArray.polygons[i]=poly_list->get_polygon(i,resolution);
             pubPolyArray.labels[i]=poly_list->label[i];
             if(poly_list->label[i]==30 || poly_list->label[i]==41 || poly_list->label[i]==76 || poly_list->label[i]==52) c++;
             pubPolyArray.likelihood[i]=1;
@@ -922,16 +915,13 @@ class TopologyMapping{
             oldNodCount=c;
             ROS_INFO("Node count: %i",c);
         }
-        
         pubTopoPoly.publish(pubPolyArray);
-
         for(int i=0; i<robotPath.size();i++){
             if(robotPath[i].size()<2){
                 robotPath.erase(robotPath.begin()+i);
                 i-=1;
             }
         }
-
         visualization_msgs::MarkerArray msgRobotPath;
         msgRobotPath.markers.resize(1+robotPath.size());
         msgRobotPath.markers[0].header.frame_id = "map";
@@ -969,9 +959,9 @@ class TopologyMapping{
         }
         pubRobotPath.publish(msgRobotPath);
         topoMapMsg.header.stamp = ros::Time::now();
-        for(int y=0; y<mapSize;y++){
-            for(int x=0;x<mapSize;x++){  
-                int index=x+y*mapSize;            
+        for(int y=0; y<mapSizeY;y++){
+            for(int x=0;x<mapSizeX;x++){  
+                int index=x+y*mapSizeX;            
                 topoMapMsg.data[index]=debugMap[x][y];
             }
         }
