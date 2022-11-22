@@ -10,21 +10,21 @@
 using namespace std;
 
 //Map setings
-int mapSizeX=10;//800;
-int mapSizeY=10;//800;
+int mapSizeX=10;
+int mapSizeY=10;
 float resolution=0;
-float mapOffsetX=0;//-(mapSize*resolution)/2;
-float mapOffsetY=0;//-(mapSize*resolution)/2;
+float mapOffsetX=0;
+float mapOffsetY=0;
 float mapHight=0;
 //scan setings
-int minGroupSize=3;
+int minGroupSize=6;
 int minCoridorSize=4;
-int cfilterSize=1;
+int cfilterSize=2;
 int objectFilterMaxStep=40;
 int groupeNumber=60;
 int numberOfDir=6;
 int numberOfDirFilter=numberOfDir;
-int extendDevider=4;
+int extendDevider=2;
 int searchLenght=50;
 
 //ant para
@@ -40,14 +40,12 @@ int minimumSercheLenght=5;
 
 //Debugging
 bool show_removed_openings=false;
-
+int **dMap;
 struct scanGroup{
     int start;
     int end;
-    int prevGroupIndex=0;
-    scanGroup **prevGroup=new scanGroup*[6];
-    int nextGroupIndex=0;
-    scanGroup **nextGroup=new scanGroup*[6];
+    vector<scanGroup*> prevGroup;
+    vector<scanGroup*> nextGroup;
 };
 
 struct point{
@@ -83,6 +81,7 @@ bool operator==(const point_int& lhs, const point_int& rhs)
 struct opening{
     point_int start;
     point_int end;
+    vector<point_int> occupied_points;
     bool start_is_outside;
     int label=1;
     int parent_poligon=-1;
@@ -319,7 +318,78 @@ bool ccw(point A,point B,point C){
 }
 
 //Return true if line segments o1 and o2 intersect.
-bool intersect_line(opening o1,opening o2, int** map){
+bool intersect_line(opening *o1,opening *o2){
+    point_int p1Max, p1Min, p2Max,p2Min;
+    p1Max.x=std::max(o1->start.x,o1->end.x);
+    p1Max.y=std::max(o1->start.y,o1->end.y);
+    p1Min.x=std::min(o1->start.x,o1->end.x);
+    p1Min.y=std::min(o1->start.y,o1->end.y);
+    p2Max.x=std::max(o2->start.x,o2->end.x);
+    p2Max.y=std::max(o2->start.y,o2->end.y);
+    p2Min.x=std::min(o2->start.x,o2->end.x);
+    p2Min.y=std::min(o2->start.y,o2->end.y);
+    if(!(p1Min.x<=p2Max.x && p1Max.x>=p2Min.x &&
+         p1Min.y<=p2Max.y && p1Max.y>=p2Min.y)) return false;
+    
+    vector<point_int> p1,p2;
+    for(int o=0;o<2;o++){
+        opening cO=*o2;
+        if(o) cO=*o1;
+        if(cO.occupied_points.size()!=0 && 
+          (cO.start==cO.occupied_points[0] && 
+           cO.end==cO.occupied_points[cO.occupied_points.size()-1]||
+           cO.end==cO.occupied_points[0] && 
+           cO.start==cO.occupied_points[cO.occupied_points.size()-1])){
+            if(o){
+                p1=cO.occupied_points;
+            }else{
+                p2=cO.occupied_points;
+            }
+            continue;
+        }
+
+        point_int start=cO.start;
+        point_int end=cO.end;
+        point_int lenght={end.x-start.x,end.y-start.y};
+        point_int step={lenght.x/std::abs(lenght.x),lenght.y/std::abs(lenght.y)};
+        lenght={std::abs(lenght.x),std::abs(lenght.y)};
+        point_int steps_taken={0,0};
+        if(o){
+            p1.push_back(start);
+        }else{
+            p2.push_back(start);
+        }
+
+        for(int s=0;s<lenght.x+lenght.y;s++){
+            if(steps_taken.x*lenght.y<steps_taken.y*lenght.x){
+                steps_taken.x+=1;
+                start.x+=step.x;
+            }else{
+                steps_taken.y+=1;
+                start.y+=step.y;
+            }
+            //dMap[start.x][start.y]=100;
+            if(o){
+                p1.push_back(start);
+            }else{
+                p2.push_back(start);
+            }
+        }
+        if(o){
+                o1->occupied_points=p1;
+            }else{
+                o2->occupied_points=p2;
+            }
+    }
+    for(int i1=0;i1<p1.size();i1++){
+        for(int i2=0;i2<p2.size();i2++){
+            if(p1[i1]==p2[i2]) return true;
+        }
+    }
+
+    return false;
+}
+bool intersect_line2(opening o1,opening o2){
     double l=1.0;
     double l1 = dist(o1.start,o1.end);
     double l2 = dist(o2.start,o2.end);
@@ -504,7 +574,6 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
     }
     return returnValue;        
 }
-
 void fillPoly(vector<point_int> PL, int value, int** map){
     point_int maxP={-1,-1},minP={-1,-1};
     vector<vector<bool>> newMap;

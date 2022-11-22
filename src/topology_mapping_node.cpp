@@ -104,11 +104,10 @@ class TopologyMapping{
                 }
                 poly_list=new Poligon_list;
                 robotPath.clear();
-                
                 if(oplist.size()>0){
                     creatPoligonList();
 
-                    if(poly_list->size()>0){;
+                    if(poly_list->size()>0){;;
                         creatPathPoligons();
                         generat_robot_path();
                     }
@@ -133,9 +132,7 @@ class TopologyMapping{
                         }
                     }
                 }
-
                 pubMap();
-
                 rMap=false;
                 rOpening=false;
             }
@@ -576,7 +573,7 @@ class TopologyMapping{
                                             complet=true;
                                         }
 
-                                    }else if(max_emty_cells>maxAntGap && opIndex!=-1){
+                                    }else if(max_emty_cells>maxAntGap && opIndex!=-1 && pathType!=4){
                                         pathType=5;
                                         complet=true;
                                     }else if(pathType==0){
