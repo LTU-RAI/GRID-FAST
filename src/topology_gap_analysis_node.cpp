@@ -305,7 +305,7 @@ class TopologyMapping{
                 p2=&op->start;
             }
             int tIndex=0;
-
+            
             //move points outside a wall 
             while (getMap(p1->x,p1->y,topMap)!=0||getMap(p1->x+1,p1->y,topMap)!=0 && getMap(p1->x-1,p1->y,topMap)!=0 &&
                     getMap(p1->x,p1->y+1,topMap)!=0 && getMap(p1->x,p1->y-1,topMap)!=0){
@@ -318,34 +318,21 @@ class TopologyMapping{
                     break;
                 }
             }
-
+            
             //moves point so they are next to a wall 
-            int dirX=0;
-            int dirY=1;
-            int lenght=0;
-            while(getMap(p1->x+dirX*(lenght+1),p1->y+dirY*(lenght+1),topMap)==0){
-                if(dirX==0 && dirY==1){
-                    dirX=1;
-                    dirY=0;
-                }else if(dirX==1 && dirY==0){
-                    dirX=0;
-                    dirY=-1;
-                }else if(dirX==0 && dirY==-1){
-                    dirX=-1;
-                    dirY=0;
-                }else if(dirX==-1 && dirY==0){
-                    dirX=0;
-                    dirY=1;
-                    lenght+=1;
+            while (getMap(p1->x+1,p1->y,topMap)==0 && getMap(p1->x-1,p1->y,topMap)==0 &&
+                    getMap(p1->x,p1->y+1,topMap)==0 && getMap(p1->x,p1->y-1,topMap)==0){
+                if(abs(p2->x-p1->x)>abs(p2->y-p1->y)&&abs(p2->x-p1->x)>2){
+                    p1->x-=(p2->x-p1->x)<0?-1:1;
+                }
+                else if(abs(p2->y-p1->y)>2){
+                    p1->y-=(p2->y-p1->y)<0?-1:1;
+                }else{
+                    break;
                 }
             }
-            p1->x+=dirX*lenght;
-            p1->y+=dirY*lenght;
-
-            if(mlenght<lenght) mlenght=lenght;
-            
         }
-        return mlenght<maxMlenght;
+        return true;
     }
 
     //Find all openings detection occupying the same opening, then removing all except the most fitnign opening detection. Return false if o should be deleted.
@@ -722,38 +709,15 @@ class TopologyMapping{
 
                         for(int k=0; k<newOpList.size();k++){
                             opening o=newOpList[k];
-                            if(!correctOpening(&o,10)) continue;
+                            correctOpening(&o,10);
                             
                             if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;
-
+                            moveOpeningIntoCoridor(&o,topMap);
                             //remove too small openings
                             double opLenght=dist(o.start,o.end);
                             if(opLenght<minGroupSize){
                                 continue;
                             }
-                            //Move openings point such that they don't overlap another openings points
-                            /*for(int sids=0; sids<2 && false;sids++){
-                                ant_data step;
-                                step.end=sids==0?o.start:o.end;
-                                bool cheek=false;
-                                int c=0;
-                                while (!cheek && c<inSearchLenght){
-                                    c++;
-                                    cheek=true;
-                                    
-                                    if(check_for_opening(step.end,3)){
-                                        step=ant_step(step.end,sids==0,step.dir,topMap);
-                                        if(sids==0){
-                                            o.start=step.end;
-                                        }else{
-                                            o.end=step.end;
-                                        }
-                                        cheek=false;
-                                        break;
-                                    }
-                                    
-                                }
-                            }*/
                             bool skip=false;
                         //Check if opening is overlapping another opening.
                         for(int h=0; h<oplist.size() && !skip && o.label<10; h++){

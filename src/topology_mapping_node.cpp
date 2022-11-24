@@ -853,7 +853,8 @@ class TopologyMapping{
                         (double)(op.end.y-op.start.y)*resolution};
             
             double l=sqrt(abs(side.x*side.x+side.y*side.y));
-            point nSide={side.x/(8*l),side.y/(8*l)};
+            if(l<0.01) continue;
+            point nSide={side.x/(16*l),side.y/(16*l)};
             point nNorm={-nSide.y, nSide.x};
             geometry_msgs::PolygonStamped p;
             p.header.frame_id = "map";
@@ -939,7 +940,7 @@ class TopologyMapping{
             msgRobotPath.markers[i].pose.orientation.x=0.0;
             msgRobotPath.markers[i].pose.orientation.y=0.0;
             msgRobotPath.markers[i].pose.orientation.z=0.0;
-            msgRobotPath.markers[i].scale.x=0.3;
+            msgRobotPath.markers[i].scale.x=0.15;
             msgRobotPath.markers[i].scale.y=0.1;
             msgRobotPath.markers[i].scale.z=0.1;
             msgRobotPath.markers[i].color.a=1.0;

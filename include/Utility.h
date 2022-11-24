@@ -17,14 +17,14 @@ float mapOffsetX=0;
 float mapOffsetY=0;
 float mapHight=0;
 //scan setings
-int minGroupSize=6;
+int minGroupSize=4;
 int minCoridorSize=4;
 int cfilterSize=2;
 int objectFilterMaxStep=40;
 int groupeNumber=60;
-int numberOfDir=6;
+int numberOfDir=8;
 int numberOfDirFilter=numberOfDir;
-int extendDevider=2;
+int extendDevider=4;
 int searchLenght=50;
 
 //ant para
@@ -82,6 +82,9 @@ struct opening{
     point_int start;
     point_int end;
     vector<point_int> occupied_points;
+    scanGroup *parent=NULL;
+    int parent_id=0;
+    bool parentNext=true;
     bool start_is_outside;
     int label=1;
     int parent_poligon=-1;
@@ -312,9 +315,44 @@ bool checkForWall(opening o,int maximumWallCount, int** map){
     }
 }
 
-//suport function for intersect_line
-bool ccw(point A,point B,point C){
-    return (C.y-A.y) * (B.x-A.x) > (B.y-A.y) * (C.x-A.x);
+vector<point_int> generateOpeningPoints(opening *o){
+    vector<point_int> p;
+    if(o->occupied_points.size()!=0 && 
+    (o->start==o->occupied_points[0] && 
+    o->end==o->occupied_points[o->occupied_points.size()-1]||
+    o->end==o->occupied_points[0] && 
+    o->start==o->occupied_points[o->occupied_points.size()-1])){
+        
+        p=o->occupied_points;
+    
+        return p;
+    }
+
+    point_int start=o->start;
+    point_int end=o->end;
+    point_int lenght={end.x-start.x,end.y-start.y};
+    point_int step={lenght.x/std::abs(lenght.x),lenght.y/std::abs(lenght.y)};
+    lenght={std::abs(lenght.x),std::abs(lenght.y)};
+    point_int steps_taken={0,0};
+    
+    p.push_back(start);
+    
+    for(int s=0;s<lenght.x+lenght.y;s++){
+        if(steps_taken.x*lenght.y<steps_taken.y*lenght.x){
+            steps_taken.x+=1;
+            start.x+=step.x;
+        }else{
+            steps_taken.y+=1;
+            start.y+=step.y;
+        }
+
+        p.push_back(start);
+        
+    }
+
+    o->occupied_points=p;
+        
+    return p;
 }
 
 //Return true if line segments o1 and o2 intersect.
@@ -332,105 +370,32 @@ bool intersect_line(opening *o1,opening *o2){
          p1Min.y<=p2Max.y && p1Max.y>=p2Min.y)) return false;
     
     vector<point_int> p1,p2;
-    for(int o=0;o<2;o++){
-        opening cO=*o2;
-        if(o) cO=*o1;
-        if(cO.occupied_points.size()!=0 && 
-          (cO.start==cO.occupied_points[0] && 
-           cO.end==cO.occupied_points[cO.occupied_points.size()-1]||
-           cO.end==cO.occupied_points[0] && 
-           cO.start==cO.occupied_points[cO.occupied_points.size()-1])){
-            if(o){
-                p1=cO.occupied_points;
-            }else{
-                p2=cO.occupied_points;
-            }
-            continue;
-        }
-
-        point_int start=cO.start;
-        point_int end=cO.end;
-        point_int lenght={end.x-start.x,end.y-start.y};
-        point_int step={lenght.x/std::abs(lenght.x),lenght.y/std::abs(lenght.y)};
-        lenght={std::abs(lenght.x),std::abs(lenght.y)};
-        point_int steps_taken={0,0};
-        if(o){
-            p1.push_back(start);
-        }else{
-            p2.push_back(start);
-        }
-
-        for(int s=0;s<lenght.x+lenght.y;s++){
-            if(steps_taken.x*lenght.y<steps_taken.y*lenght.x){
-                steps_taken.x+=1;
-                start.x+=step.x;
-            }else{
-                steps_taken.y+=1;
-                start.y+=step.y;
-            }
-            //dMap[start.x][start.y]=100;
-            if(o){
-                p1.push_back(start);
-            }else{
-                p2.push_back(start);
-            }
-        }
-        if(o){
-                o1->occupied_points=p1;
-            }else{
-                o2->occupied_points=p2;
-            }
-    }
+    p1= generateOpeningPoints(o1);
+    p2= generateOpeningPoints(o2);
     for(int i1=0;i1<p1.size();i1++){
         for(int i2=0;i2<p2.size();i2++){
             if(p1[i1]==p2[i2]) return true;
         }
     }
-
     return false;
 }
-bool intersect_line2(opening o1,opening o2){
-    double l=1.0;
-    double l1 = dist(o1.start,o1.end);
-    double l2 = dist(o2.start,o2.end);
-    point n1={((o1.end.x-o1.start.x)/l1)*l, ((o1.end.y-o1.start.y)/l1)*l};
-    point n2={((o2.end.x-o2.start.x)/l2)*l, ((o2.end.y-o2.start.y)/l2)*l};
-    point p1[]={{(double)o1.start.x-n1.x,(double)o1.start.y-n1.y},{(double)o1.end.x+n1.x,(double)o1.end.y+n1.y}};
-    point p2[]={{(double)o2.start.x-n2.x,(double)o2.start.y-n2.y},{(double)o2.end.x+n2.x,(double)o2.end.y+n2.y}};
-    point currentO[2], testingO[2];
-    for(int side=0;side<2;side++){
-        if(side==0){
-            currentO[0]=p1[0];
-            currentO[1]=p1[1];
-            testingO[0]=p2[0];
-            testingO[1]=p2[1];
-        }else{
-            currentO[0]=p2[0];
-            currentO[1]=p2[1];
-            testingO[0]=p1[0];
-            testingO[1]=p1[1];
-        }
 
-        double ang=atan2(currentO[1].y-currentO[0].y,currentO[1].x-currentO[0].x);
-        point oTest[]={testingO[0],testingO[1]};
-        point oTest3[]={testingO[0],testingO[1]};
-        double cosA=cos(-ang);
-        double sinA=sin(-ang);
-        for(int i=0; i<2;i++){
-            //using a 2d rotation matrix to rotate points
-            double newX=((oTest[i].x-currentO[0].x) *cosA-(oTest[i].y-currentO[0].y)*sinA);
-            double newY=((oTest[i].x-currentO[0].x) *sinA+(oTest[i].y-currentO[0].y)*cosA);
-            oTest[i].x=newX;
-            oTest[i].y=newY;
+//Move an opening to the bigest opening of two walls
+void moveOpeningIntoCoridor(opening *o, int **map){
+    int bigestCoridor=0;
+    int sIndex=-1;
+    vector<point_int> p=generateOpeningPoints(o);
+    for(int i=0;i<p.size();i++){
+        if(sIndex==-1 && getMap(p[i].x,p[i].y,map)==0){
+            sIndex=i;
+        }else if(sIndex!=-1 && getMap(p[i].x,p[i].y,map)!=0 
+                 && i!=0 && i-1-sIndex>bigestCoridor){
+            o->start=p[sIndex];
+            o->end=p[i-1];
+            bigestCoridor=i-1-sIndex;
+            sIndex=-1;
         }
-        
-        if(oTest[0].y<0 && oTest[1].y<0 || oTest[0].y>0 && oTest[1].y>0){ return false;}
-        else{
-            //ROS_INFO("%f, %f, %f, %f, %f",ang,oTest3[0].x,oTest3[0].y,oTest3[1].x,oTest3[1].y);
-            //ROS_INFO("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f",ang,oTest[0].x,oTest[0].y,oTest[1].x,oTest[1].y,currentO[0].x,currentO[0].y,currentO[1].x,currentO[1].y,testingO[0].x,testingO[0].y,testingO[1].x,testingO[1].y);
-             }
     }
-    return true;
 }
 
 //checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
