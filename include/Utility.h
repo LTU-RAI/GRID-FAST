@@ -44,6 +44,7 @@ int **dMap;
 struct scanGroup{
     int start;
     int end;
+    int row;
     vector<scanGroup*> prevGroup;
     vector<scanGroup*> nextGroup;
 };
@@ -338,7 +339,7 @@ vector<point_int> generateOpeningPoints(opening *o){
     p.push_back(start);
     
     for(int s=0;s<lenght.x+lenght.y;s++){
-        if(steps_taken.x*lenght.y<steps_taken.y*lenght.x){
+        if(steps_taken.x*lenght.y<steps_taken.y*lenght.x && lenght.x!=0 || lenght.y==0){
             steps_taken.x+=1;
             start.x+=step.x;
         }else{
@@ -349,7 +350,6 @@ vector<point_int> generateOpeningPoints(opening *o){
         p.push_back(start);
         
     }
-
     o->occupied_points=p;
         
     return p;
@@ -372,6 +372,7 @@ bool intersect_line(opening *o1,opening *o2){
     vector<point_int> p1,p2;
     p1= generateOpeningPoints(o1);
     p2= generateOpeningPoints(o2);
+    
     for(int i1=0;i1<p1.size();i1++){
         for(int i2=0;i2<p2.size();i2++){
             if(p1[i1]==p2[i2]) return true;
@@ -422,8 +423,7 @@ bool check_for_opening(point_int position, int type){
     return testCheck;
 }
 
-//Moves the start and end points of op to minimize its length, return true if op was successfully moved.
-bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
+bool fitToCorridor2(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
     vector<point_int> s1, s2;
     ant_data search_step;
     int number_of_emty=0;

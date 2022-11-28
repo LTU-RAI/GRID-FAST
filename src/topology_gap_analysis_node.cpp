@@ -13,6 +13,8 @@ class TopologyMapping{
 
         //msg
         nav_msgs::OccupancyGrid topoMapMsg;
+        nav_msgs::OccupancyGrid topoMapMsgD;
+        point_int sizeD;
         //Maps
         int **Map;
         int **topMap;
@@ -39,7 +41,7 @@ class TopologyMapping{
         
     //Load all maps, and map transforms into the memory
     void loadMemory(){
-        generateMapTransform();
+        
         //Creat all maps in memory
         ObjectFilterLookup=new bool*[mapSizeX];
         scanMap=new int*[mapSizeX];
@@ -69,6 +71,7 @@ class TopologyMapping{
         }
         //Create scanGarray, used for storing gaps in the gap analysis
         scanGarray.resize(numberOfDir);
+        generateMapTransform();
         initializeTopoMap();
     }
     void unloadMemory(){
@@ -100,6 +103,7 @@ class TopologyMapping{
         
         while (ros::ok()){
             oplist.clear();
+
             topologyScan();
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
@@ -148,29 +152,37 @@ class TopologyMapping{
             float rotation=M_PI*angle/numberOfDir;
             float cosA=cos(-rotation);
             float sinA=sin(-rotation);
-            point_int d1,d2;
+            point_int d1,d2,d1x,d2x;
             for(int x=0;x<mapSizeX;x+=mapSizeX-1){
                 for(int y=0;y<mapSizeY;y+=mapSizeY-1){
                     int newX=int(std::round(((x-mapSizeX/2)*cosA-(y-mapSizeY/2)*sinA)+mapSizeX/2));
                     int newY=int(std::round(((x-mapSizeX/2)*sinA+(y-mapSizeY/2)*cosA)+mapSizeY/2));
-                    if(x==0 && y==0) d1.x=newY;
-                    if(x==mapSizeX-1 && y==mapSizeY-1) d1.y=newY;
+                    if(x==0 && y==0){
+                        d1.x=newY;
+                        d1x.x=newX;
+                    } 
+                    if(x==mapSizeX-1 && y==mapSizeY-1){
+                        d1.y=newY;
+                        d1x.y=newX;
+                    } 
 
-                    if(x==mapSizeX-1 && y==0)d2.x=newY;
-                    if(x==0 && y==mapSizeY-1)d2.y=newY;
+                    if(x==mapSizeX-1 && y==0){
+                        d2.x=newY;
+                        d2x.x=newX;
+                        }
+                    if(x==0 && y==mapSizeY-1){
+                        d2.y=newY;
+                        d2x.y=newX;
+                    }
                 }
             }
             int ySize,xSize,yoffset,xoffset;
             if(std::abs(d2.x-d2.y)<std::abs(d1.x-d1.y)){
                 ySize=std::abs(d1.x-d1.y)+1;
-                yoffset=std::min(d1.x,d1.y);
-                xSize=std::abs(d2.x-d2.y)+1;
-                xoffset=std::min(d2.x,d2.y);
+                xSize=std::abs(d2x.x-d2x.y)+1;
             }else{
                 ySize=std::abs(d2.x-d2.y)+1;
-                yoffset=std::min(d2.x,d2.y); 
-                xSize=std::abs(d1.x-d1.y)+1;
-                xoffset=std::min(d1.x,d1.y);
+                xSize=std::abs(d1x.x-d1x.y)+1;
             }
             vector<vector<mapTransform>> tMap;
             tMap.resize(ySize);
@@ -226,6 +238,7 @@ class TopologyMapping{
         vector<opening> newOp;
         newOp.resize(op.size());
         for(int i=0; i<op.size();i++){
+            newOp[i]=op[i];
             for(int sids=0; sids<2;sids++){
                 point_int p=op[i].start;
                 if(sids==1){
@@ -241,7 +254,6 @@ class TopologyMapping{
                     newOp[i].end=p;
                 }
             }
-            newOp[i].start_is_outside=op[i].start_is_outside;
         }
         return newOp;        
     }
@@ -334,7 +346,95 @@ class TopologyMapping{
         }
         return true;
     }
+    //Moves the start and end points of op to minimize its length, return true if op was successfully moved.
+    bool fitToCorridor(opening *op,int inSearchLenght, int angIndex){
+        bool move_left;
+        point_int *p;
+        point_int fixedP;
+        if(op->parent_id==0){
+            move_left=true;
+            if(op->parentNext){
+                p=&op->start;
+            }else{
+                p=&op->end;
+            }
+            
+        }else if(op->parentNext && op->parent->nextGroup.size()-1==op->parent_id ||
+                !op->parentNext && op->parent->prevGroup.size()-1==op->parent_id){
+            move_left=false;
+            if(op->parentNext){
+                p=&op->end;
+            }else{
+                p=&op->start;
+            }
+        }else return true;
+        vector<point_int> potensial_p;
+        point_int nP;
+        scanGroup *cGap;
+        if(op->parentNext){
+            cGap=op->parent->nextGroup[op->parent_id];
+        }else{
+            cGap=op->parent->prevGroup[op->parent_id];
+        }
+        if(move_left){
+            nP={cGap->start,cGap->row};
+            fixedP={cGap->end,cGap->row};
+        }else{
+            nP={cGap->end,cGap->row};
+            fixedP={cGap->start,cGap->row};
+        }
+        potensial_p.push_back(nP);
+        for(int s=0;s<inSearchLenght;s++){
+            if(op->parentNext && cGap->nextGroup.size()!=1||
+            !op->parentNext && cGap->prevGroup.size()!=1) break;
+            
+            if(op->parentNext){
+                cGap=cGap->nextGroup[0];
+            }else{
+                cGap=cGap->prevGroup[0];
+            }
+            if(move_left){
+                nP={cGap->start,cGap->row};
+            }else{
+                nP={cGap->end,cGap->row};
+            }
+        }
+        cGap=op->parent;
 
+        if(move_left){
+            nP={cGap->start,cGap->row};
+        }else{
+            nP={cGap->end,cGap->row};
+        }
+        potensial_p.push_back(nP);
+        for(int s=0;s<inSearchLenght;s++){
+            if(op->parentNext && cGap->prevGroup.size()!=1||
+            !op->parentNext && cGap->nextGroup.size()!=1) break;
+            
+            if(op->parentNext){
+                cGap=cGap->prevGroup[0];
+            }else{
+                cGap=cGap->nextGroup[0];
+            }
+            if(move_left){
+                nP={cGap->start,cGap->row};
+            }else{
+                nP={cGap->end,cGap->row};
+            }
+        }
+        double mindis=-1;
+        point_int finalP;
+        for(int i=0;i<potensial_p.size();i++){
+            double d=dist(potensial_p[i],fixedP);
+            if(mindis==-1||d<mindis){
+                finalP=potensial_p[i];
+                mindis=d;
+            }
+        }
+        finalP=getMapIndexTransform(finalP.x,finalP.y,angIndex);
+        *p=finalP;
+        return true;
+    }
     //Find all openings detection occupying the same opening, then removing all except the most fitnign opening detection. Return false if o should be deleted.
     bool cleanOpenings(opening op){
         vector<int> vo;
@@ -500,6 +600,7 @@ class TopologyMapping{
                         //if found groupe is larger then minGroupSize add it as gap
                         if(cGroupeSize>minGroupSize){
                             sg.end=endpoint;
+                            sg.row=i;
                             sg.prevGroup.clear();
                             sg.nextGroup.clear();
                             if(filter){
@@ -678,6 +779,9 @@ class TopologyMapping{
                                         newOp.start={newStart,i};
                                         newOp.end={newEnd,i};
                                     }
+                                    newOp.parent=&scanGarray[angle][i][index];
+                                    newOp.parent_id=h;
+                                    newOp.parentNext=direction;
                                     newOpList.push_back(newOp);
                                     break;
                                 }
@@ -711,7 +815,9 @@ class TopologyMapping{
                             opening o=newOpList[k];
                             correctOpening(&o,10);
                             
-                            if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;
+                            if(!fitToCorridor2(&o,inSearchLenght,topMap)) continue;
+                            //fitToCorridor(&o,200,angle);
+                            //correctOpening(&o,10);
                             moveOpeningIntoCoridor(&o,topMap);
                             //remove too small openings
                             double opLenght=dist(o.start,o.end);
@@ -854,7 +960,7 @@ class TopologyMapping{
                             if(dist(o.start,o.end)<minGroupSize){
                                 continue;
                             }
-                            
+                            moveOpeningIntoCoridor(&o,topMap);
                             if(checkForWall(o, 1,topMap))o.label=12;
 
                             if(o.label<10){
@@ -888,6 +994,13 @@ class TopologyMapping{
                 int index=x+y*mapSizeX;            
                 topoMapMsg.data[index]=topMap[x][y];
             }
+        }
+        for(int oi=0;oi<oplist.size();oi++){
+            for(int i=0;i<oplist[oi].occupied_points.size();i++){
+                dMap[oplist[oi].occupied_points[i].x][oplist[oi].occupied_points[i].y]=100;
+            }
+            dMap[oplist[oi].start.x][oplist[oi].start.y]=0;
+            dMap[oplist[oi].end.x][oplist[oi].end.y]=50;
         }
         pubTopoMap.publish(topoMapMsg);
         for(int y=0; y<mapSizeY;y++){

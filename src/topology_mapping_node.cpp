@@ -370,7 +370,7 @@ class TopologyMapping{
                                         newOp.start=oplist[targetIndex].end;
                                         newOp.end=oplist[lastIndex].start;
                                         //fitt new opening to coridor get s1 and s2 that is the points that the opening was moved 
-                                        fitToCorridor(&newOp,40,topMap,true,true);
+                                        fitToCorridor2(&newOp,40,topMap,true,true);
                                         newOp.label=2;
                                         newOp.parent_poligon=-2;
                                         poly.add_sideIndex(oplist.size(),cw);
