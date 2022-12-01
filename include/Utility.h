@@ -21,11 +21,11 @@ int minGroupSize=4;
 int minCoridorSize=4;
 int cfilterSize=2;
 int objectFilterMaxStep=40;
-int groupeNumber=60;
-int numberOfDir=8;
+int numberOfDir=6;
 int numberOfDirFilter=numberOfDir;
-int extendDevider=4;
-int searchLenght=50;
+int extendDevider=2;
+double dw=0.2;
+int searchLenght=200;
 
 //ant para
 int searchLenghtClean=50;
@@ -39,7 +39,7 @@ int voronoiRez=6;
 int minimumSercheLenght=5;
 
 //Debugging
-bool show_removed_openings=false;
+bool show_removed_openings=true;
 int **dMap;
 struct scanGroup{
     int start;
@@ -83,9 +83,7 @@ struct opening{
     point_int start;
     point_int end;
     vector<point_int> occupied_points;
-    scanGroup *parent=NULL;
-    int parent_id=0;
-    bool parentNext=true;
+    int sideToMove=3;//1:start,2:end,3:none
     bool start_is_outside;
     int label=1;
     int parent_poligon=-1;
@@ -400,13 +398,14 @@ void moveOpeningIntoCoridor(opening *o, int **map){
 }
 
 //checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
-int check_and_get_opening(point_int position, int type, bool only_standard_opening=false){
+int check_and_get_opening(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
     int oIndex=-1;
     
     for(int i=0; i<oplist.size(); i++){
         if(oplist[i].label<10 && (!only_standard_opening || oplist[i].label==1) &&
             (type==1 && oplist[i].start==position || type==2 && oplist[i].end==position ||
             type==3 && (oplist[i].start==position || oplist[i].end==position))){
+                if(i==exclude) continue;
                 oIndex=i;
         }
     }
@@ -422,7 +421,78 @@ bool check_for_opening(point_int position, int type){
 
     return testCheck;
 }
+//Moves the start and end points of op to minimize its length, return true if op was successfully moved.
+bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false){
+    if(op->sideToMove==3) return true;
+    point_int *moveP;
+    point_int fixedP;
+    if(op->sideToMove==1){
+        moveP=&op->start;
+        fixedP=op->end;
+    }else{
+        moveP=&op->end;
+        fixedP=op->start;
+    }
+    point_int alt1, alt2;
+    for(int sides=0;sides<2;sides++){
+        vector<point_int> posP;
+        ant_data step;
+        step.end=*moveP;
+        posP.push_back(step.end);
 
+        for(int s=0;s<inSearchLenght;s++){
+            step=ant_step(step.end,sides,step.dir,map);
+            if(step.end==fixedP) break;
+            if(step.emty_cell) continue;
+            posP.push_back(step.end);
+        }
+        point_int test, hbest, best;
+        test=*moveP;
+        best=test;
+        hbest=test;
+        double bestLength=0;
+        bool first=true, changed=false;
+        int sIndex=0, eIndex=0, decrisCount=0;
+        for(int i=0;i<=posP.size();i++){
+            if(i==posP.size()){
+                best=hbest;
+                changed=true;
+                break;
+            }
+            test=posP[i];
+            double lenght=dist(test,fixedP);
+            if(lenght<minGroupSize) break;
+            if(first || lenght<bestLength){
+                opening o;
+                o.start=fixedP;
+                o.end=test;
+                if(!checkForWall(o,1,map)){
+                    first=false;
+                    bestLength=lenght;
+                    hbest=test;
+                }
+                
+            }else{
+                if(decrisCount>=3){
+                    best=hbest;
+                    changed=true;
+                    decrisCount=0;
+                }else decrisCount+=1;
+            }
+        }
+        if(sides){
+            alt2=best;
+        }else{
+            alt1=best;
+        }
+    }
+    
+    if(dist(fixedP,alt1)<dist(fixedP,alt2)){
+        *moveP=alt1;
+    }else *moveP=alt2;
+    
+    return true;
+}
 bool fitToCorridor2(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
     vector<point_int> s1, s2;
     ant_data search_step;

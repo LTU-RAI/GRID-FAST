@@ -105,7 +105,15 @@ class TopologyMapping{
                 poly_list=new Poligon_list;
                 robotPath.clear();
                 if(oplist.size()>0){
+                    remove_unnecessary_openings();
                     creatPoligonList();
+                    for(int b=0; b<oplist.size(); b++){
+                        if(oplist[b].parent_poligon<0 && oplist[b].label<10){
+                            oplist[b].label=24;
+                        }
+                    }
+                    optimize_intersection_openings();
+                    //optimize_intersection_openings();
 
                     if(poly_list->size()>0){;;
                         creatPathPoligons();
@@ -199,6 +207,24 @@ class TopologyMapping{
         return out;
     }
 
+    void remove_unnecessary_openings(){
+        double openingScale=1.8;
+        for(int i=0; i<oplist.size();i++){
+            if(oplist[i].label>10) continue;
+            int maxSteps=int(std::round(dist(oplist[i].start,oplist[i].end)*openingScale));
+            //ROS_INFO("%i",maxSteps);
+            ant_data step;
+            step.end=oplist[i].start;
+            for(int s=0;s<maxSteps;s++){
+                step=ant_step(step.end,false,step.dir,topMap);
+                if(step.end==oplist[i].end){
+                    oplist[i].label=30;
+                    break;
+                }
+            }
+        }
+    }
+
     void creat_poligon_area(int polyIndex){
         vector<point_int> points;
         vector<point_int> points_desplay;
@@ -239,6 +265,7 @@ class TopologyMapping{
         poly_list->poly[polyIndex].poligon_points_desplay=points_desplay;
     }
 
+
     point_int get_poligon_center(vector<point_int> sList){
         point_int center={0,0};
         for(int i=0; i<sList.size();i++){
@@ -263,12 +290,13 @@ class TopologyMapping{
     }
 
     //Remove connection of all openings connected to the same poligon as opening with index Index, poligon is then tagged for removal.
-    void remove_parent_poligon(int opIndex, bool remove_openign=false){
+    void remove_parent_poligon(int opIndex, bool remove_openign=false, bool remove_all_openings=false){
         if(opIndex>=0){
             if(oplist[opIndex].parent_poligon>=0){
                 int pIndex=oplist[opIndex].parent_poligon;
                 for(int i=0; i<poly_list->poly[pIndex].sidesIndex.size();i++){
                     oplist[poly_list->poly[pIndex].sidesIndex[i]].parent_poligon=-1;
+                    if(remove_all_openings) oplist[poly_list->poly[pIndex].sidesIndex[i]].label=26;
                     poly_list->poly[pIndex].inactiv=true;
                 }
             }
@@ -369,15 +397,15 @@ class TopologyMapping{
                                         opening newOp;
                                         newOp.start=oplist[targetIndex].end;
                                         newOp.end=oplist[lastIndex].start;
-                                        //fitt new opening to coridor get s1 and s2 that is the points that the opening was moved 
-                                        fitToCorridor2(&newOp,40,topMap,true,true);
+                                        //fitt new opening to coridor 
+                                        //fitToCorridor2(&newOp,40,topMap,true,true);
                                         newOp.label=2;
                                         newOp.parent_poligon=-2;
                                         poly.add_sideIndex(oplist.size(),cw);
                                         int newIndex=oplist.size();
                                         oplist.push_back(newOp);
                                         //check if new opening is good 
-                                        if(!checkForWall(newOp,1,topMap) && dist(newOp.start,newOp.end)>=minGroupSize){
+                                        if(!checkForWall(newOp,1,topMap) && dist(newOp.start,newOp.end)>=minGroupSize || true){
                                             complet=true;
 
                                         }else{//bad new opening, remove conflicting opening instead
@@ -474,6 +502,108 @@ class TopologyMapping{
                     }
                 }
             }
+        }
+    }
+
+    void optimize_intersection_openings(){
+        int sLenght=6000;
+        for(int pIndex=0;pIndex<poly_list->poly.size();pIndex++){
+            if(poly_list->poly[pIndex].inactiv) continue;
+            for(int sideIndex=0;sideIndex<poly_list->poly[pIndex].sidesIndex.size();sideIndex++){
+                int opIndex=poly_list->poly[pIndex].sidesIndex[sideIndex];
+                vector<point_int> startS, endS;
+                for(int sids=0;sids<2;sids++){
+                    for(int dir=0; dir<2;dir++){
+                        
+                        ant_data step;
+                        step.end=sids?oplist[opIndex].end:oplist[opIndex].start;
+                        bool cw=!(dir==sids);
+                        if(!dir){
+                            if(!sids){
+                                startS.push_back(step.end);
+                            }else{
+                                endS.push_back(step.end);
+                            }
+                        }else{
+                            int tIndex=check_and_get_opening(step.end,3,false,opIndex);
+                            if(tIndex!=-1) break;
+                        }
+                        for(int s=0;s<sLenght;s++){
+                            step=ant_step(step.end,cw,step.dir,topMap);
+                            if(check_for_opening(step.end,3)) break;
+                            if(step.emty_cell) continue;
+                            if(!sids){
+                                if(!dir){
+                                    startS.push_back(step.end);
+                                }else{
+                                    startS.insert(startS.begin(),step.end);
+                                }
+                            }else{
+                                if(!dir){
+                                    endS.push_back(step.end);
+                                }else{
+                                    endS.insert(endS.begin(),step.end);
+                                }
+                            }
+                        }
+                    }
+                }
+                opening test, hbest, best;
+                test=oplist[opIndex];
+                best=test;
+                hbest=test;
+                double bestScore=0, bestLength=0;
+                bool first=true, changed=false;
+                int sIndex=0, eIndex=0, decrisCount=0;
+                while(true){
+                    //ROS_INFO("%i, %i, %i, %i",startS[sI].x,startS[sI].y,endS[eI].x,endS[eI].y);
+                    if(sIndex+1<startS.size() && (eIndex+1>=endS.size() || 
+                       dist(startS[sIndex+1],endS[eIndex])<dist(startS[sIndex],endS[eIndex+1]))){
+                        sIndex+=1;
+                    }else if(eIndex+1<endS.size()){
+                        eIndex+=1;
+                    }else{
+                        best=hbest;
+                        changed=true;
+                        break;
+                    }
+                    test.start=startS[sIndex];
+                    test.end=endS[eIndex];
+                    double lenght=dist(test.start,test.end);
+                    if(lenght<minGroupSize) break;
+                    if(first || lenght<bestLength){
+                        bestLength=lenght;
+                    }else{
+                        if(decrisCount>=4){
+                            best=hbest;
+                            changed=true;
+                            decrisCount=0;
+                        }else decrisCount+=1;
+                    }
+                    double score=lenght+dw*(sIndex+eIndex)/2; //dist(test.get_center(),poly_list->poly[pIndex].center);
+                    if(first || score<bestScore){
+                        first=false;
+                        bestScore=score;
+                        hbest=test;
+                    }
+                    
+                }
+                //ROS_INFO("%i, %i, %i, %i",best.start.x,best.start.y,best.end.x,best.end.y);
+                if(!checkForWall(best,1,topMap))
+                oplist[opIndex]=best;
+                if(!changed){
+                    if(poly_list->poly[pIndex].sidesIndex.size()<=3){
+                        remove_parent_poligon(opIndex, true, true);
+                    }else{
+                        oplist[opIndex].parent_poligon=-1;
+                        oplist[opIndex].label=26;
+                        poly_list->poly[pIndex].sidesIndex.erase(poly_list->poly[pIndex].sidesIndex.begin()+sideIndex);
+                        sideIndex=-1;
+                    }
+                }
+            }
+            creat_poligon_area(pIndex);
+            poly_list->poly[pIndex].center=get_poligon_center(poly_list->poly[pIndex].poligon_points);
         }
     }
 

@@ -346,95 +346,7 @@ class TopologyMapping{
         }
         return true;
     }
-    //Moves the start and end points of op to minimize its length, return true if op was successfully moved.
-    bool fitToCorridor(opening *op,int inSearchLenght, int angIndex){
-        bool move_left;
-        point_int *p;
-        point_int fixedP;
-        if(op->parent_id==0){
-            move_left=true;
-            if(op->parentNext){
-                p=&op->start;
-            }else{
-                p=&op->end;
-            }
-            
-        }else if(op->parentNext && op->parent->nextGroup.size()-1==op->parent_id ||
-                !op->parentNext && op->parent->prevGroup.size()-1==op->parent_id){
-            move_left=false;
-            if(op->parentNext){
-                p=&op->end;
-            }else{
-                p=&op->start;
-            }
-        }else return true;
-        vector<point_int> potensial_p;
-        point_int nP;
-        scanGroup *cGap;
-        if(op->parentNext){
-            cGap=op->parent->nextGroup[op->parent_id];
-        }else{
-            cGap=op->parent->prevGroup[op->parent_id];
-        }
-        if(move_left){
-            nP={cGap->start,cGap->row};
-            fixedP={cGap->end,cGap->row};
-        }else{
-            nP={cGap->end,cGap->row};
-            fixedP={cGap->start,cGap->row};
-        }
-        potensial_p.push_back(nP);
-        for(int s=0;s<inSearchLenght;s++){
-            if(op->parentNext && cGap->nextGroup.size()!=1||
-            !op->parentNext && cGap->prevGroup.size()!=1) break;
-            
-            if(op->parentNext){
-                cGap=cGap->nextGroup[0];
-            }else{
-                cGap=cGap->prevGroup[0];
-            }
-            if(move_left){
-                nP={cGap->start,cGap->row};
-            }else{
-                nP={cGap->end,cGap->row};
-            }
-        }
-        cGap=op->parent;
-
-        if(move_left){
-            nP={cGap->start,cGap->row};
-        }else{
-            nP={cGap->end,cGap->row};
-        }
-        potensial_p.push_back(nP);
-        for(int s=0;s<inSearchLenght;s++){
-            if(op->parentNext && cGap->prevGroup.size()!=1||
-            !op->parentNext && cGap->nextGroup.size()!=1) break;
-            
-            if(op->parentNext){
-                cGap=cGap->prevGroup[0];
-            }else{
-                cGap=cGap->nextGroup[0];
-            }
-            if(move_left){
-                nP={cGap->start,cGap->row};
-            }else{
-                nP={cGap->end,cGap->row};
-            }
-        }
-        double mindis=-1;
-        point_int finalP;
-        for(int i=0;i<potensial_p.size();i++){
-            double d=dist(potensial_p[i],fixedP);
-            if(mindis==-1||d<mindis){
-                finalP=potensial_p[i];
-                mindis=d;
-            }
-        }
-        finalP=getMapIndexTransform(finalP.x,finalP.y,angIndex);
-        *p=finalP;
-        return true;
-    }
+    
     //Find all openings detection occupying the same opening, then removing all except the most fitnign opening detection. Return false if o should be deleted.
     bool cleanOpenings(opening op){
         vector<int> vo;
@@ -753,10 +665,13 @@ class TopologyMapping{
                         }
                         for(int h=0;h<loopAmount;h++){
                             depthCount=0;
+                            int endIndex=0;
                             if(direction==0){
                                 p=scanGarray[angle][i][index].prevGroup[h];
+                                endIndex=scanGarray[angle][i][index].prevGroup.size()-1;
                             }else{
                                 p=scanGarray[angle][i][index].nextGroup[h];
+                                endIndex=scanGarray[angle][i][index].nextGroup.size()-1;
                             }
 
                             while (true){
@@ -775,13 +690,21 @@ class TopologyMapping{
                                     if(direction==1){
                                         newOp.start={newEnd,i};
                                         newOp.end={newStart,i};
+                                        if(h==0){
+                                            newOp.sideToMove=2;
+                                        }else if(h==endIndex){
+                                            newOp.sideToMove=1;
+                                        }
                                     }else{
                                         newOp.start={newStart,i};
                                         newOp.end={newEnd,i};
+                                        if(h==0){
+                                            newOp.sideToMove=1;
+                                        }else if(h==endIndex){
+                                            newOp.sideToMove=2;
+                                        }
                                     }
-                                    newOp.parent=&scanGarray[angle][i][index];
-                                    newOp.parent_id=h;
-                                    newOp.parentNext=direction;
+                                    
                                     newOpList.push_back(newOp);
                                     break;
                                 }
@@ -815,7 +738,7 @@ class TopologyMapping{
                             opening o=newOpList[k];
                             correctOpening(&o,10);
                             
-                            if(!fitToCorridor2(&o,inSearchLenght,topMap)) continue;
+                            if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;
                             //fitToCorridor(&o,200,angle);
                             //correctOpening(&o,10);
                             moveOpeningIntoCoridor(&o,topMap);
@@ -823,6 +746,29 @@ class TopologyMapping{
                             double opLenght=dist(o.start,o.end);
                             if(opLenght<minGroupSize){
                                 continue;
+                            }
+                            //Move openings point such that they don't overlap another openings points
+                            for(int sids=0; sids<2 && false;sids++){
+                                ant_data step;
+                                step.end=sids==0?o.start:o.end;
+                                bool cheek=false;
+                                int c=0;
+                                while (!cheek && c<inSearchLenght){
+                                    c++;
+                                    cheek=true;
+                                    
+                                    if(check_for_opening(step.end,3)){
+                                        step=ant_step(step.end,sids==0,step.dir,topMap);
+                                        if(sids==0){
+                                            o.start=step.end;
+                                        }else{
+                                            o.end=step.end;
+                                        }
+                                        cheek=false;
+                                        break;
+                                    }
+                                    
+                                }
                             }
                             bool skip=false;
                         //Check if opening is overlapping another opening.
@@ -833,7 +779,6 @@ class TopologyMapping{
                                     bool conected[]={false, false};
                                     point_int conect[2];
                                     int conection_lenght[]={0,0};//direction and distans to conection
-                                    int conection_waite=-1;
                                     point_int conection_dir[2];
                                     bool conection_cw[2];
                                     ant_data step_info;
@@ -848,10 +793,6 @@ class TopologyMapping{
                                             int emty_count=0;
                                             for(int s=0;s<sercheLenthAnt; s++){
                                                 if(step_info.end==oplistComp.end){
-                                                        if(sides==1){
-                                                            conection_waite=direction==1?s:-s;
-                                                        }
-
                                                         conect[sides]=oplistComp.end;
                                                         conected[sides]=true;
                                                         conection_lenght[sides]=s;
@@ -861,9 +802,6 @@ class TopologyMapping{
                                                         break;
 
                                                 }else if(step_info.end==oplistComp.start){
-                                                        if(sides==0){
-                                                            conection_waite+=direction==0?s:-s;
-                                                        }
                                                         conect[sides]=oplistComp.start;
                                                         conected[sides]=true;
                                                         conection_lenght[sides]=s;
@@ -889,15 +827,40 @@ class TopologyMapping{
                                     int sides=1;
                                     //If overlapping opening doesnt share a wall with o then keep the shortest opening. 
                                     if(!conected[0] && !conected[1]){
+                                        opening *spliting;
+                                        opening *keeping;
                                         if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
+                                            keeping=&oplist[h];
+                                            spliting=&o;
                                             oplist[h].label=16;
-                                            break;
                                         }else{
+                                            spliting=&oplist[h];
+                                            keeping=&o;
                                             skip=true;
-                                            break;
                                         }
+                                        point_int anker;
+                                        if(dist(spliting->get_center(),keeping->start)<
+                                           dist(spliting->get_center(),keeping->end)){
+                                            anker=keeping->start;
+                                        }else anker=keeping->end;
+                                        point_int dir={0,0};
+                                        anker=ant_step(anker,true,dir,topMap).end;
+                                        if(dist(anker,spliting->start)>=minGroupSize){
+                                            opening nO;
+                                            nO.start=spliting->start;
+                                            nO.end=anker;
+                                            //oplist.push_back(nO);
+                                        }
+                                        if(dist(anker,spliting->end)>=minGroupSize){
+                                            opening nO;
+                                            nO.start=anker;
+                                            nO.end=spliting->end;
+                                            //oplist.push_back(nO);
+                                        }
+                                        break;
+                                    }
                                     //If openings share one or two common wall check which side should be moved.
-                                    }else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
+                                    else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
                                         sides=0;
                                     }
                                     int c=0;
@@ -914,9 +877,9 @@ class TopologyMapping{
                                             o.end.x=step_info.end.x;
                                             o.end.y=step_info.end.y;
                                         }
+                                        moveOpeningIntoCoridor(&o,topMap);
                                     }
-                                    
-                                    
+                                                                       
                                     point_int *op;
                                     op=&step_info.end;
                                     int cIndex=-1;
@@ -960,7 +923,7 @@ class TopologyMapping{
                             if(dist(o.start,o.end)<minGroupSize){
                                 continue;
                             }
-                            moveOpeningIntoCoridor(&o,topMap);
+                            
                             if(checkForWall(o, 1,topMap))o.label=12;
 
                             if(o.label<10){
