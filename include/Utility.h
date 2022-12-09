@@ -7,6 +7,7 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
 #include <topology_mapping/opening_list.h>
+#include <topology_mapping/topometricMap.h>
 using namespace std;
 
 //Map setings
@@ -20,7 +21,7 @@ float mapHight=0;
 int minGroupSize=4;
 int minCoridorSize=4;
 int cfilterSize=2;
-int objectFilterMaxStep=40;
+int objectFilterMaxStep=1;
 int numberOfDir=6;
 int numberOfDirFilter=numberOfDir;
 int extendDevider=2;
@@ -32,14 +33,14 @@ int searchLenghtClean=50;
 int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
-int maxAntGap=8;
+int maxAntGap=2;
 int poligonRez=4;
 int poligonRezPath=10;
 int voronoiRez=6;
 int minimumSercheLenght=5;
 
 //Debugging
-bool show_removed_openings=true;
+bool show_removed_openings=false;
 int **dMap;
 struct scanGroup{
     int start;
@@ -110,6 +111,8 @@ struct poligon{
     vector<int> sidesIndex;
     vector<point_int> poligon_points;
     vector<point_int> poligon_points_desplay;
+    vector<int> connectedPoligons;
+    vector<vector<point_int>> connectedPaths;
     int label=1;
     bool inactiv=false;
     bool path=false;
@@ -136,64 +139,6 @@ struct poligon{
     }
 };
 
-struct Poligon_list{
-    vector<poligon> poly;
-    vector<int> label;
-
-    void add(poligon p, int l){
-        poly.push_back(p);
-        label.push_back(l);
-    }
-
-    void remove(int index){
-        poly.erase(poly.begin()+index);
-        label.erase(label.begin()+index);
-    }
-
-    void clear(){
-        for(int i=0;i<poly.size();i++){
-            poly[i].poligon_points.clear();
-            poly[i].poligon_points_desplay.clear();
-            poly[i].sidesIndex.clear();
-        }
-        poly.clear();
-        label.clear();
-    }
-
-    int size(){
-        return poly.size();
-    }
-
-    geometry_msgs::PolygonStamped get_polygon(int index, float resolution, double z=0.1){
-        int MapOrigenX=-mapOffsetX/resolution;
-        int MapOrigenY=-mapOffsetY/resolution;
-        vector<point_int> points;
-        for(int i=0; i<poly[index].poligon_points_desplay.size(); i++){
-            bool test=true;
-            for(int n=0; n<points.size(); n++){
-                if(poly[index].poligon_points_desplay[i]==points[n]){
-                    test=false;
-                }
-            }
-            if(test){
-                points.push_back(poly[index].poligon_points_desplay[i]);
-            }
-        }
-        geometry_msgs::PolygonStamped newPoly;
-        newPoly.header.frame_id = "map";
-        newPoly.header.stamp = ros::Time::now();
-        newPoly.polygon.points.resize(points.size());
-
-        for(int n=0; n<points.size(); n++){
-            newPoly.polygon.points[n].x=(points[n].x-MapOrigenX)*resolution;
-            newPoly.polygon.points[n].y=(points[n].y-MapOrigenY)*resolution;
-            newPoly.polygon.points[n].z=z;
-        }
-
-        return newPoly;
-    }
-};
-
 struct ant_data{
     point_int dir={0,0};
     point_int end;
@@ -201,6 +146,35 @@ struct ant_data{
 };
 
 vector<opening> oplist;
+
+geometry_msgs::PolygonStamped get_polygon(poligon poly, float resolution, double z=0.1){
+    int MapOrigenX=-mapOffsetX/resolution;
+    int MapOrigenY=-mapOffsetY/resolution;
+    vector<point_int> points;
+    for(int i=0; i<poly.poligon_points_desplay.size(); i++){
+        bool test=true;
+        for(int n=0; n<points.size(); n++){
+            if(poly.poligon_points_desplay[i]==points[n]){
+                test=false;
+            }
+        }
+        if(test){
+            points.push_back(poly.poligon_points_desplay[i]);
+        }
+    }
+    geometry_msgs::PolygonStamped newPoly;
+    newPoly.header.frame_id = "map";
+    newPoly.header.stamp = ros::Time::now();
+    newPoly.polygon.points.resize(points.size());
+
+    for(int n=0; n<points.size(); n++){
+        newPoly.polygon.points[n].x=(points[n].x-MapOrigenX)*resolution;
+        newPoly.polygon.points[n].y=(points[n].y-MapOrigenY)*resolution;
+        newPoly.polygon.points[n].z=z;
+    }
+
+    return newPoly;
+}
 
 int getMap(int x, int y,int **map){
     if(x<0||x>mapSizeX) return -1;
@@ -609,7 +583,7 @@ bool fitToCorridor2(opening *op,int inSearchLenght,int** map, bool limitBothSids
     }
     return returnValue;        
 }
-void fillPoly(vector<point_int> PL, int value, int** map){
+vector<point_int> fillPoly(vector<point_int> PL){
     point_int maxP={-1,-1},minP={-1,-1};
     vector<vector<bool>> newMap;
     for(int n=0; n<PL.size();n++){
@@ -633,12 +607,16 @@ void fillPoly(vector<point_int> PL, int value, int** map){
             newMap[x][y]=!newMap[x][y];
         }
     }
+    vector<point_int> filledPoints;
     for(int x=0;x<newMap.size();x++){
         for(int y=0;y<newMap[x].size();y++){
-            if(newMap[x][y])
-                setMap(x+minP.x,y+minP.y,value,map);
+            if(newMap[x][y]){
+                point_int p={x+minP.x,y+minP.y};
+                filledPoints.push_back(p);
+            }
         }
     }
+    return filledPoints;
 }
 
 /*//Returns int rep calss, 0=North, 1=West, 2=South, 3=East

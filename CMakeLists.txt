@@ -59,6 +59,9 @@ add_message_files(
   point2D_int.msg
   opening.msg 
   opening_list.msg
+  topoPolygon.msg
+  topometricMap.msg
+  point2D_intList.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -79,6 +82,7 @@ add_message_files(
 generate_messages(
   DEPENDENCIES
   std_msgs
+  nav_msgs
 )
 
 ################################################
@@ -148,6 +152,9 @@ target_link_libraries(topology_gap_analysis_node ${catkin_LIBRARIES})
 add_executable(topology_mapping_node src/topology_mapping_node.cpp)
 add_dependencies(topology_mapping_node ${topology_mapping_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(topology_mapping_node ${catkin_LIBRARIES})
+add_executable(topology_navigation_node src/topology_navigation_node.cpp)
+add_dependencies(topology_navigation_node ${topology_mapping_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(topology_navigation_node ${catkin_LIBRARIES})
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
