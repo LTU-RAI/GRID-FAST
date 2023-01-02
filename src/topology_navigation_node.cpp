@@ -137,10 +137,12 @@ class TopologyMapping{
         point force={50,0};
         for(int i=0;i<laserRange.size();i++){
             double ang=laserAngInc*i;
+            if(laserRange[i]<0.01) continue;
             force.x-=cos(ang)*(1/(laserRange[i]*laserRange[i]))*.12;
             force.y-=sin(ang)*(1/(laserRange[i]*laserRange[i]))*.12;
         }
         double tDir=atan2(force.y,force.x);
+        //ROS_INFO("%f, %f, %f",tDir,force.x,force.y);
         double p=1.0/6.0;
         double I=0.1;
         double control=tDir*p;

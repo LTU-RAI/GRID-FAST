@@ -102,7 +102,6 @@ class TopologyMapping{
             if(rMap && rOpening){
                 robotPath.clear();
                 if(oplist.size()>0){
-                    remove_unnecessary_openings();
                     vector<poligon> poly_list=creatPoligonList();
                     for(int b=0; b<oplist.size(); b++){
                         if(oplist[b].parent_poligon<0 && oplist[b].label<10){
@@ -110,7 +109,6 @@ class TopologyMapping{
                         }
                     }
                     poly_list=optimize_intersection_openings(poly_list);
-
                     if(poly_list.size()>0){
                         poly_list=creatPathPoligons(poly_list);
                         poly_list=generat_robot_path(poly_list);
@@ -196,24 +194,6 @@ class TopologyMapping{
         }
 
         return out;
-    }
-
-    void remove_unnecessary_openings(){
-        double openingScale=1.2;
-        for(int i=0; i<oplist.size();i++){
-            if(oplist[i].label>10) continue;
-            int maxSteps=int(std::round(dist(oplist[i].start,oplist[i].end)*openingScale));
-            //ROS_INFO("%i",maxSteps);
-            ant_data step;
-            step.end=oplist[i].start;
-            for(int s=0;s<maxSteps;s++){
-                step=ant_step(step.end,false,step.dir,topMap);
-                if(step.end==oplist[i].end){
-                    oplist[i].label=30;
-                    break;
-                }
-            }
-        }
     }
 
     poligon creat_poligon_area(poligon poly){
@@ -521,7 +501,6 @@ class TopologyMapping{
                 vector<point_int> startS, endS;
                 for(int sids=0;sids<2;sids++){
                     for(int dir=0; dir<2;dir++){
-                        
                         ant_data step;
                         step.end=sids?oplist[opIndex].end:oplist[opIndex].start;
                         bool cw=!(dir==sids);
@@ -681,7 +660,6 @@ class TopologyMapping{
                     point_int firstPos=step_info.end;
                     poly.add_point_d(step_info.end,cw);
                     int rezCounter=0;
-                    
                     step_info.dir={0,0};
                     for(int s=0; s<=sercheLenthAntConect; s++){
                         poly.add_point(step_info.end,cw);
@@ -693,14 +671,13 @@ class TopologyMapping{
                             rezCounter+=1;
                         }
                         step_info=ant_step(step_info.end,cw,step_info.dir,topMap);
-
+                        
                         if(step_info.end==firstPos){
                             check=true;
                             break;
                         }
 
                         opIndex=check_and_get_opening(step_info.end,cw?1:2);
-                        
                         //Found connection
                         if(opIndex!=-1 || s==sercheLenthAntConect){
                             if(oplist[opIndex].parent_poligon>=0){
@@ -794,6 +771,7 @@ class TopologyMapping{
                     default:
                         break;
                     }
+                    if(oplist[i].parent_poligon==0)
                     for(int p=0;p<poly.sidesIndex.size();p++){
                         oplist[poly.sidesIndex[p]].conected_to_path=poly_list.size();
                     }

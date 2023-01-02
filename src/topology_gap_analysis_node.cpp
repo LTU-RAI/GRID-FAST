@@ -123,10 +123,10 @@ class TopologyMapping{
                 }
             } 
             //if there are any overlap missed or created since las cheek they are removed.
-            for(int j=0; j<oplist.size(); j++){
+            for(int j=0; j<oplist.size() && false; j++){
                 for(int b=0; b<oplist.size(); b++){
                     if(intersect_line(&oplist[j],&oplist[b]) && oplist[b].label<10 && oplist[j].label<10 && j!=b){
-                        fixOverlap(&oplist[j],&oplist[b],searchLenght);
+                        fixOverlap(&oplist[j],&oplist[b],searchLenghtFixOverlap);
                     }
                 }
             }
@@ -310,6 +310,24 @@ class TopologyMapping{
         }
     }
 
+    bool checkOpening(opening o){
+        for(int sids=0;sids<2;sids++){
+            bool check=false;
+            point_int p=sids?o.end:o.start;
+            point_int dir={0,1};
+            for(int d=0;d<4;d++){
+                if(getMap(p.x+dir.x,p.y+dir.y,topMap)==100){
+                    check=true;
+                    break;
+                }
+                dir=rotate_dir(dir,true);
+                dir=rotate_dir(dir,true);
+            }
+            if(!check) return false;
+        }
+        return true;
+    }
+
     //Ensures that the end and start point is next to a wall.
     bool correctOpening(opening *op, int maxMlenght){
         point_int *p1;
@@ -355,10 +373,11 @@ class TopologyMapping{
     }
     
     //Find all openings detection occupying the same opening, then removing all except the most fitnign opening detection. Return false if o should be deleted.
-    bool cleanOpenings(opening op){
+    bool cleanOpenings(int index){
         vector<int> vo;
         vector<int> vint;
         bool selfDel=true;
+        opening op=oplist[index];
         //Follow the wall at the start and end points of op in cw and ccw direction.
         for(int sids=0; sids<2; sids++){
             for(int cw=0; cw<2; cw++){
@@ -375,7 +394,7 @@ class TopologyMapping{
                     
                     //Search will stop once a opening facing the other direction is found, 
                     //this is to stop cleaning of opening detection that does not belong to the current opening
-                    if(check_for_opening(step.end,sids==0?2:1))break;
+                    //if(check_for_opening(step.end,sids==0?2:1))break;
 
                     if(step.emty_cell){
                         empty_count+=1;
@@ -384,14 +403,14 @@ class TopologyMapping{
                     }
                     
                     if(sids==0){
-                        int opIndex=check_and_get_opening(step.end,1);
+                        int opIndex=check_and_get_opening(step.end,1,false,index);
                         if(opIndex!=-1){
                             vo.push_back(opIndex);
                             int sepL=cw==1?s:-s;
                             vint.push_back(sepL);
                         }
                     }else{
-                        int opIndex=check_and_get_opening(step.end,2);
+                        int opIndex=check_and_get_opening(step.end,2,false,index);
                         if(opIndex!=-1){
                             //check if opening was found when the other side was searched
                             for(int index=0; index<vo.size(); index++){
@@ -428,6 +447,7 @@ class TopologyMapping{
                 ant_data step;
                 step.end=sides?o1->end:o1->start;
                 for(int s=0;s<sercheLenthAnt;s++){
+                    //ROS_INFO("%i, %i, %i, %i, %i, %i",step.end.x,step.end.y,o2->start.x,o2->start.y,o2->end.x,o2->end.y);
                     if(step.end==o2->start || step.end==o2->end){
                         if(conection_lenght[sides]==-1 ||
                             s<conection_lenght[sides]){
@@ -437,11 +457,12 @@ class TopologyMapping{
                             break;
                         }
                     }
-                    step=ant_step(step.end,dir,step.end,topMap);
+                    step=ant_step(step.end,dir,step.dir,topMap);
                 }
             }
         }
         //If overlapping opening doesnt share a wall with o then keep the shortest opening.
+        
         if(conection_lenght[0]==-1 && conection_lenght[1]==-1){
             if(dist(o1->start,o1->end)<dist(o2->start,o2->end)){
                 o2->label=16;
@@ -467,7 +488,8 @@ class TopologyMapping{
             }else{
                 test.end=step.end;
             }
-            if(!checkForWall(test,1,topMap)) *o1=test;
+            //if(!checkForWall(test,1,topMap))
+            *o1=test;
         } 
         c=0;
         step=conections[sides];
@@ -480,7 +502,8 @@ class TopologyMapping{
             }else{
                 test.end=step.end;
             }
-            if(!checkForWall(test,1,topMap)) *o1=test;
+            //if(!checkForWall(test,1,topMap))
+            *o1=test;
         }
         //Check if the issue was sold otherwise delete the longest opening.
         if(intersect_line(o1,o2)){
@@ -785,7 +808,7 @@ class TopologyMapping{
                                             newOp.sideToMove=2;
                                         }
                                     }
-                                    
+                                    newOp.angle=angle;
                                     newOpList.push_back(newOp);
                                     break;
                                 }
@@ -808,224 +831,213 @@ class TopologyMapping{
                             newOpList[0].start_is_outside=true;
                             newOpList[newOpList.size()-1].start_is_outside=false;
                         }
-                        int inSearchLenght=searchLenght;
 
                         //rotate point back to original rotation
                         newOpList=rotate_points(newOpList,angle);
                         for(int k=0; k<newOpList.size();k++){
-                            opening o=newOpList[k];
-                            correctOpening(&o,10);
-                            if(!fitToCorridor(&o,inSearchLenght,topMap)) continue;
-                            //fitToCorridor(&o,200,angle);
-                            //correctOpening(&o,10);
-                            moveOpeningIntoCoridor(&o,topMap);
-                            //remove too small openings
-                            double opLenght=dist(o.start,o.end);
-                            if(opLenght<minGroupSize){
-                                continue;
-                            }
-                            //Move openings point such that they don't overlap another openings points
-                            for(int sids=0; sids<2 && false;sids++){
-                                ant_data step;
-                                step.end=sids==0?o.start:o.end;
-                                bool cheek=false;
-                                int c=0;
-                                while (!cheek && c<inSearchLenght){
-                                    c++;
-                                    cheek=true;
-                                    
-                                    if(check_for_opening(step.end,3)){
-                                        step=ant_step(step.end,sids==0,step.dir,topMap);
-                                        if(sids==0){
-                                            o.start=step.end;
-                                        }else{
-                                            o.end=step.end;
-                                        }
-                                        cheek=false;
-                                        break;
-                                    }
-                                    
-                                }
-                            }
-                            bool skip=false;
-                        //Check if opening is overlapping another opening.
-                        vector<int> dIndex;
-                        for(int h=0; h<oplist.size() && o.label<10;h++){
-                            if(oplist[h].label>10 || !intersect_line(&o,&oplist[h])) continue;
-                            fixOverlap(&o,&oplist[h],inSearchLenght);
-                            if(oplist[h].label>10){
-                                dIndex.push_back(h);
-                            }else if(o.label>10){
-                                for(int hI=0;hI<dIndex.size();hI++){
-                                    oplist[dIndex[hI]].label=1;
-                                }
-                            }
-                        }
-                        /*for(int h=0; h<oplist.size() && !skip && o.label<10; h++){
-                                opening oplistComp=oplist[h];
-                                if(intersect_line(&o,&oplist[h]) && oplistComp.label<10 && o.label<10){
-
-                                    bool conected[]={false, false};
-                                    point_int conect[2];
-                                    int conection_lenght[]={0,0};//direction and distans to conection
-                                    point_int conection_dir[2];
-                                    bool conection_cw[2];
-                                    ant_data step_info;
-                                    //search both sides of o for the overlapping opening detection
-                                    for(int sides=0; sides<2; sides++){
-                                        for(int d=0; d<2; d++){
-                                            if(conected[sides]) continue;
-
-                                            step_info.end=sides==0?o.start:o.end;
-                                            bool clockwise= d==0;
-                                            step_info.dir={0,0};
-                                            int emty_count=0;
-                                            for(int s=0;s<sercheLenthAnt; s++){
-                                                if(step_info.end==oplistComp.end){
-                                                        conect[sides]=oplistComp.end;
-                                                        conected[sides]=true;
-                                                        conection_lenght[sides]=s;
-                                                        conection_dir[sides].x=step_info.dir.x;
-                                                        conection_dir[sides].y=step_info.dir.y;
-                                                        conection_cw[sides]=clockwise;
-                                                        break;
-
-                                                }else if(step_info.end==oplistComp.start){
-                                                        conect[sides]=oplistComp.start;
-                                                        conected[sides]=true;
-                                                        conection_lenght[sides]=s;
-                                                        conection_dir[sides].x=step_info.dir.x;
-                                                        conection_dir[sides].y=step_info.dir.y;
-                                                        conection_cw[sides]=clockwise;
-                                                        break;
-                                                }
-                                                step_info=ant_step(step_info.end,clockwise,step_info.dir,topMap);
-                                                
-                                                if(step_info.emty_cell){
-                                                    emty_count+=1;
-                                                    if(emty_count>maxAntGap){
-                                                        break;
-                                                    }
-                                                }else if(emty_count>0){
-                                                    emty_count-=1;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    int sides=1;
-                                    //If overlapping opening doesnt share a wall with o then keep the shortest opening. 
-                                    if(!conected[0] && !conected[1]){
-                                        opening *spliting;
-                                        opening *keeping;
-                                        if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
-                                            keeping=&oplist[h];
-                                            spliting=&o;
-                                            oplist[h].label=16;
-                                        }else{
-                                            spliting=&oplist[h];
-                                            keeping=&o;
-                                            skip=true;
-                                        }
-                                        point_int anker;
-                                        if(dist(spliting->get_center(),keeping->start)<
-                                           dist(spliting->get_center(),keeping->end)){
-                                            anker=keeping->start;
-                                        }else anker=keeping->end;
-                                        point_int dir={0,0};
-                                        anker=ant_step(anker,true,dir,topMap).end;
-                                        if(dist(anker,spliting->start)>=minGroupSize){
-                                            opening nO;
-                                            nO.start=spliting->start;
-                                            nO.end=anker;
-                                            //oplist.push_back(nO);
-                                        }
-                                        if(dist(anker,spliting->end)>=minGroupSize){
-                                            opening nO;
-                                            nO.start=anker;
-                                            nO.end=spliting->end;
-                                            //oplist.push_back(nO);
-                                        }
-                                        break;
-                                    }
-                                    //If openings share one or two common wall check which side should be moved.
-                                    else if(conection_lenght[0]<conection_lenght[1] && conected[0] || !conected[1]){
-                                        sides=0;
-                                    }
-                                    int c=0;
-                                    step_info.end=conect[sides];
-                                    step_info.dir=conection_dir[sides];
-                                    //Move one side of o until there is no overlap. 
-                                    while(intersect_line(&oplist[h],&o) && c<inSearchLenght){
-                                        c+=1;
-                                        step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir,topMap);
-                                        if(sides==0){
-                                            o.start.x=step_info.end.x;
-                                            o.start.y=step_info.end.y;
-                                        }else{
-                                            o.end.x=step_info.end.x;
-                                            o.end.y=step_info.end.y;
-                                        }
-                                        moveOpeningIntoCoridor(&o,topMap);
-                                    }
-                                                                       
-                                    point_int *op;
-                                    op=&step_info.end;
-                                    int cIndex=-1;
-                                    bool cheek=false;
-                                    int deb=0;
-                                    c=0;
-                                    //Move or stash it start and end does not overlap with an other opening. 
-                                    while (!cheek && c<inSearchLenght){
-                                        c++;
-                                        cheek=true;
-                                        
-                                        if(check_for_opening(step_info.end,3)){
-                                            step_info=ant_step(step_info.end,conection_cw[sides],step_info.dir,topMap);
-                                            if(sides==0){
-                                                o.start.x=step_info.end.x;
-                                                o.start.y=step_info.end.y;
-                                            }else{
-                                                o.end.x=step_info.end.x;
-                                                o.end.y=step_info.end.y;
-                                            }
-                                            cheek=false;
-                                        }
-                                        
-                                            
-                                    }
-                                    //Check if the issue was sold otherwise delete the longest opening.
-                                    if(intersect_line(&oplist[h],&o)){
-                                        if(dist(o.start,o.end)<dist(oplistComp.start,oplistComp.end)){
-                                            oplist[h].label=16;
-                                            h-=1;
-                                            break;
-                                        }else{
-                                            skip=true;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }*/
-                            //if(skip)o.label=16;//Removed because overlap couldn't be solved
-
-                            if(dist(o.start,o.end)<minGroupSize){
-                                continue;
-                            }
-                            moveOpeningIntoCoridor(&o,topMap);
-                            if(checkForWall(o, 1,topMap))o.label=12;
-
-                            if(o.label<10){
-                                if(!cleanOpenings(o)){
-                                    o.label=14;
-                                }
-                            }
-                            oplist.push_back(o);
+                            oplist.push_back(newOpList[k]);
                         } 
                     }
                 }
             }
         }  
+        //return;
+        vector<opening> newOplist;
+        while(oplist.size()!=0){
+            vector<int> ignorlist;
+            if(!FindOpenings(0,&newOplist,&ignorlist)){
+                newOplist.push_back(oplist[0]);
+                oplist.erase(oplist.begin());
+            }
+        }
+        //oplist=newOplist;
+        for(int index=0;index<newOplist.size();index++){
+            correctOpening(&newOplist[index],10);
+            if(!checkOpening(newOplist[index])) newOplist[index].label=14;
+            if(checkForWall(newOplist[index], 1,topMap))newOplist[index].label=12;
+            //remove_unnecessary_openings(topMap);
+
+            if(newOplist[index].sideToMove!=3){
+                vector<point_int> intersectP;
+                vector<int> intersectIndex;
+                for(int index2=0;index2<newOplist.size();index2++){
+                    if(index==index2) continue;
+                    if(newOplist[index2].sideToMove!=3) continue;
+                    point_int p;
+                    if(!intersect_line(&newOplist[index],&newOplist[index2],&p)) continue;
+                    intersectP.push_back(p);
+                    intersectIndex.push_back(index2);
+                }
+                if(intersectP.size()>0){
+                    point_int testP=newOplist[index].sideToMove==1?
+                                    newOplist[index].start:newOplist[index].end;
+                    double minLenght=dist(testP,intersectP[0]);
+                    int bestIndex=intersectIndex[0];
+                    for(int m=1;m<intersectP.size();m++){
+                        double length=dist(testP,intersectP[m]);
+                        if(length<minLenght){
+                            minLenght=length;
+                            bestIndex=intersectIndex[m];
+                        }
+                    }
+                    point_int moveToP=newOplist[index].sideToMove==1?
+                                      newOplist[bestIndex].end:newOplist[bestIndex].start;
+                    if(newOplist[index].sideToMove==1){
+                        newOplist[index].start=moveToP;
+                    }else{
+                        newOplist[index].end=moveToP;
+                    }
+                }
+            }
+            oplist=newOplist;
+            if(newOplist[index].label<10){
+                if(!cleanOpenings(index)){
+                    newOplist[index].label=14;
+                }
+            }
+
+        }
+        oplist.clear();
+        for(int index=0; index<newOplist.size();index++){
+            opening o=newOplist[index];
+            
+            //Move openings point such that they don't overlap another openings points
+            for(int sids=0; sids<2 && false;sids++){
+                ant_data step;
+                step.end=sids==0?o.start:o.end;
+                bool cheek=false;
+                int c=0;
+                while (!cheek && c<searchLenghtFitcoridor){
+                    c++;
+                    cheek=true;
+                    
+                    if(check_for_opening(step.end,3)){
+                        step=ant_step(step.end,sids==0,step.dir,topMap);
+                        if(sids==0){
+                            o.start=step.end;
+                        }else{
+                            o.end=step.end;
+                        }
+                        cheek=false;
+                        break;
+                    }
+                    
+                }
+            }
+            bool skip=false;
+            //Check if opening is overlapping another opening.
+            vector<int> dIndex;
+            for(int h=0; h<oplist.size() && o.label<10;h++){
+                if(oplist[h].label>10 || !intersect_line(&o,&oplist[h])) continue;
+                /*if(oplist.size()==17){
+                        ROS_INFO("Index: %li, %i label: %i, %i",oplist.size(),h,o.label,oplist[h].label);
+                        ROS_INFO("%i,%i,%i,%i",o.start.x,o.start.y,o.end.x,o.end.y);
+                        ROS_INFO("%i,%i,%i,%i",oplist[h].start.x,oplist[h].start.y,oplist[h].end.x,oplist[h].end.y);
+                        oplist.push_back(o);
+                        oplist.back().label=40;
+                    }*/
+                fixOverlap(&o,&oplist[h],searchLenghtFixOverlap);
+                /*if(o.label>10 || oplist[h].label>10){
+                    if(oplist.size()==18){
+                        o.label=30;
+                        oplist[h].label=30;
+                    }
+                    ROS_INFO("Index: %li, %i label: %i, %i",oplist.size(),h,o.label,oplist[h].label);
+                    ROS_INFO("%i,%i,%i,%i",o.start.x,o.start.y,o.end.x,o.end.y);
+                    ROS_INFO("%i,%i,%i,%i",oplist[h].start.x,oplist[h].start.y,oplist[h].end.x,oplist[h].end.y);
+                }*/
+                if(oplist[h].label>10){
+                    dIndex.push_back(h);
+                }else if(o.label>10){
+                    for(int hI=0;hI<dIndex.size();hI++){
+                        oplist[dIndex[hI]].label=1;
+                    }
+                }
+            }
+            if(dist(o.start,o.end)<minGroupSize){
+                continue;
+            }
+            moveOpeningIntoCoridor(&o,topMap);
+            correctOpening(&o,10);
+            if(checkForWall(o, 1,topMap))o.label=12;
+
+            oplist.push_back(o);
+        }
+    }
+
+    bool FindOpenings(int targetIndex, vector<opening> *newOplist, vector<int> *ignorList){
+        while (true){
+            if(oplist[targetIndex].sideToMove==3){
+                return false;
+            }
+            vector<int> interOpIndex;
+            vector<point_int> interPoint;
+            for(int index=0;index<oplist.size();index++){
+                if(targetIndex==index) continue;
+                if(oplist[index].sideToMove==3) continue;
+                if(oplist[targetIndex].sideToMove==oplist[index].sideToMove) continue;
+                
+                point_int p;
+                if(!intersect_line(&oplist[targetIndex],&oplist[index],&p)) continue;
+                interOpIndex.push_back(index);
+                interPoint.push_back(p);
+            }
+            
+            if(interOpIndex.size()==0){
+                return false;
+            }
+
+            opening bestNewOp;
+            double bestScore=-1;
+            int selectedIndex=-1;
+            for(int i=0; i<interOpIndex.size();i++){
+                opening newOp;
+                if(oplist[targetIndex].sideToMove==1){
+                    newOp.start=oplist[interOpIndex[i]].start;
+                    newOp.end=oplist[targetIndex].end;
+                }else{
+                    newOp.start=oplist[targetIndex].start;
+                    newOp.end=oplist[interOpIndex[i]].end;
+                }
+                if(dist(newOp.start,newOp.end)<minGroupSize) continue;
+
+                double d1=dist(interPoint[i],newOp.end);
+                double d2=dist(newOp.start,interPoint[i]);
+                //double score=(d1-d2)*(d1-d2);
+                double score=d1*d1+d2*d2;
+                
+                //newOplist->push_back(newOp);
+                if(bestScore<0||score<bestScore){
+                    if((newOp.end.x-newOp.start.x)*(interPoint[i].y-newOp.start.y)-
+                       (newOp.end.y-newOp.start.y)*(interPoint[i].x-newOp.start.x)>0) continue;
+                    if(checkForWall(newOp,1,topMap)) continue;
+                    if(check_unnecessary_openings(newOp,topMap)) continue;
+                    selectedIndex=interOpIndex[i];
+                    bestNewOp=newOp;
+                    bestScore=score;
+                }
+            }
+            //return false;
+            if(selectedIndex==-1){
+                return false;
+            }
+            for(int i=0; i<ignorList->size(); i++){
+                if(ignorList->at(i)==selectedIndex) return false;
+            }
+            ignorList->push_back(targetIndex);
+            bool check=FindOpenings(selectedIndex,newOplist,ignorList);
+            ignorList->pop_back();
+            if(check) continue;
+            newOplist->push_back(bestNewOp);
+            oplist.erase(oplist.begin()+std::max(targetIndex,selectedIndex));
+            oplist.erase(oplist.begin()+std::min(targetIndex,selectedIndex));
+
+            for(int i=0; i<ignorList->size(); i++){
+                if(ignorList->at(i)>targetIndex) ignorList->at(i)--;
+                if(ignorList->at(i)>selectedIndex) ignorList->at(i)--;
+            }
+            return true;
+        }
     }
 
     //Function to publish all topics. 

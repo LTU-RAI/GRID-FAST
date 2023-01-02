@@ -18,29 +18,31 @@ float mapOffsetX=0;
 float mapOffsetY=0;
 float mapHight=0;
 //scan setings
-int minGroupSize=4;
+int minGroupSize=6;
 int minCoridorSize=4;
 int cfilterSize=2;
-int objectFilterMaxStep=1;
-int numberOfDir=6;
+int objectFilterMaxStep=30;
+double openingRemoveScale=1.4;
+int numberOfDir=4;
 int numberOfDirFilter=numberOfDir;
 int extendDevider=2;
 double dw=0.2;
-int searchLenght=200;
+int searchLenghtFitcoridor=60;
+int searchLenghtFixOverlap=200;
 
 //ant para
 int searchLenghtClean=50;
 int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
-int maxAntGap=2;
+int maxAntGap=4;
 int poligonRez=4;
 int poligonRezPath=10;
 int voronoiRez=6;
 int minimumSercheLenght=5;
 
 //Debugging
-bool show_removed_openings=false;
+bool show_removed_openings=true;
 int **dMap;
 struct scanGroup{
     int start;
@@ -85,6 +87,7 @@ struct opening{
     point_int end;
     vector<point_int> occupied_points;
     int sideToMove=3;//1:start,2:end,3:none
+    int angle;
     bool start_is_outside;
     int label=1;
     int parent_poligon=-1;
@@ -177,9 +180,8 @@ geometry_msgs::PolygonStamped get_polygon(poligon poly, float resolution, double
 }
 
 int getMap(int x, int y,int **map){
-    if(x<0||x>mapSizeX) return -1;
-    if(y<0||y>mapSizeY) return -1;
-
+    if(x<0||x>=mapSizeX) return -1;
+    if(y<0||y>=mapSizeY) return -1;
     return map[x][y];
 }
 
@@ -288,6 +290,27 @@ bool checkForWall(opening o,int maximumWallCount, int** map){
     }
 }
 
+bool check_unnecessary_openings(opening o,int** map){
+    int maxSteps=int(std::round(dist(o.start,o.end)*openingRemoveScale));
+    ant_data step;
+    step.end=o.start;
+    for(int s=0;s<maxSteps;s++){
+        step=ant_step(step.end,false,step.dir,map);
+        if(step.end==o.end){
+            return true;
+        }
+    }
+    return false;
+}
+
+void remove_unnecessary_openings(int** map){
+    for(int i=0; i<oplist.size();i++){
+        if(oplist[i].label>10) continue;
+        if(!check_unnecessary_openings(oplist[i],map))continue;
+        oplist[i].label=30;
+    }
+}
+
 vector<point_int> generateOpeningPoints(opening *o){
     vector<point_int> p;
     if(o->occupied_points.size()!=0 && 
@@ -328,7 +351,7 @@ vector<point_int> generateOpeningPoints(opening *o){
 }
 
 //Return true if line segments o1 and o2 intersect.
-bool intersect_line(opening *o1,opening *o2){
+bool intersect_line(opening *o1,opening *o2, point_int *intersectionPoint=NULL){
     point_int p1Max, p1Min, p2Max,p2Min;
     p1Max.x=std::max(o1->start.x,o1->end.x);
     p1Max.y=std::max(o1->start.y,o1->end.y);
@@ -347,7 +370,10 @@ bool intersect_line(opening *o1,opening *o2){
     
     for(int i1=0;i1<p1.size();i1++){
         for(int i2=0;i2<p2.size();i2++){
-            if(p1[i1]==p2[i2]) return true;
+            if(p1[i1]==p2[i2]){
+                if(intersectionPoint!=NULL) *intersectionPoint=p1[i1];
+                return true;
+            } 
         }
     }
     return false;
@@ -400,6 +426,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
     if(op->sideToMove==3) return true;
     point_int *moveP;
     point_int fixedP;
+    bool changed=false;
     if(op->sideToMove==1){
         moveP=&op->start;
         fixedP=op->end;
@@ -425,7 +452,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
         best=test;
         hbest=test;
         double bestLength=0;
-        bool first=true, changed=false;
+        bool first=true;
         int sIndex=0, eIndex=0, decrisCount=0;
         for(int i=0;i<=posP.size();i++){
             if(i==posP.size()){
@@ -465,7 +492,7 @@ bool fitToCorridor(opening *op,int inSearchLenght,int** map, bool limitBothSids=
         *moveP=alt1;
     }else *moveP=alt2;
     
-    return true;
+    return changed;
 }
 bool fitToCorridor2(opening *op,int inSearchLenght,int** map, bool limitBothSids=false, bool oneDir=false, vector<point_int> *sida1=NULL,vector<point_int> *sida2=NULL){
     vector<point_int> s1, s2;
