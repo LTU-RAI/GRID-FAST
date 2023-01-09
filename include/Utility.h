@@ -18,20 +18,20 @@ float mapOffsetX=0;
 float mapOffsetY=0;
 float mapHight=0;
 //scan setings
-int minGroupSize=6;
-int minCoridorSize=4;
+int minGroupSize=3;
+int minCoridorSize=2;
 int cfilterSize=2;
-int objectFilterMaxStep=30;
+int objectFilterMaxStep=6;
 double openingRemoveScale=1.4;
-int numberOfDir=4;
-int numberOfDirFilter=numberOfDir;
+int numberOfDir=3;
 int extendDevider=2;
 double dw=0.2;
 int searchLenghtFitcoridor=60;
-int searchLenghtFixOverlap=200;
+int searchLenghtFixOverlap=30;
+bool removeOpeningsFirst=true;
 
 //ant para
-int searchLenghtClean=50;
+int searchLenghtClean=10;
 int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
@@ -350,9 +350,15 @@ vector<point_int> generateOpeningPoints(opening *o){
     return p;
 }
 
+//suport function for intersect_line
+bool ccw(point A,point B,point C){
+    return (C.y-A.y) * (B.x-A.x) > (B.y-A.y) * (C.x-A.x);
+}
+
 //Return true if line segments o1 and o2 intersect.
 bool intersect_line(opening *o1,opening *o2, point_int *intersectionPoint=NULL){
     point_int p1Max, p1Min, p2Max,p2Min;
+    double l=0;
     p1Max.x=std::max(o1->start.x,o1->end.x);
     p1Max.y=std::max(o1->start.y,o1->end.y);
     p1Min.x=std::min(o1->start.x,o1->end.x);
@@ -361,10 +367,21 @@ bool intersect_line(opening *o1,opening *o2, point_int *intersectionPoint=NULL){
     p2Max.y=std::max(o2->start.y,o2->end.y);
     p2Min.x=std::min(o2->start.x,o2->end.x);
     p2Min.y=std::min(o2->start.y,o2->end.y);
+    
     if(!(p1Min.x<=p2Max.x && p1Max.x>=p2Min.x &&
          p1Min.y<=p2Max.y && p1Max.y>=p2Min.y)) return false;
-    
-    vector<point_int> p1,p2;
+    if(o1->end==o2->end) return true;
+    if(o1->start==o2->start) return true;
+    if(o1->start==o2->end) return false;
+    if(o1->end==o2->start) return false;
+    double l1 = dist(o1->start,o1->end);
+    double l2 = dist(o2->start,o2->end);
+    point n1={((o1->end.x-o1->start.x)/l1)*l, ((o1->end.y-o1->start.y)/l1)*l};
+    point n2={((o2->end.x-o2->start.x)/l2)*l, ((o2->end.y-o2->start.y)/l2)*l};
+    point A={o1->start.x-n1.x,o1->start.y-n1.y}, B={o1->end.x+n1.x,o1->end.y+n1.y};
+    point C={o2->start.x-n2.x,o2->start.y-n2.y}, D={o2->end.x+n2.x,o2->end.y+n2.y}; 
+    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D);
+    /*vector<point_int> p1,p2;
     p1= generateOpeningPoints(o1);
     p2= generateOpeningPoints(o2);
     
@@ -376,7 +393,7 @@ bool intersect_line(opening *o1,opening *o2, point_int *intersectionPoint=NULL){
             } 
         }
     }
-    return false;
+    return false;*/
 }
 
 //Move an opening to the bigest opening of two walls

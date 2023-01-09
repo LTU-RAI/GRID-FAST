@@ -102,6 +102,7 @@ class TopologyMapping{
             if(rMap && rOpening){
                 robotPath.clear();
                 if(oplist.size()>0){
+                    ROS_INFO("---");
                     vector<poligon> poly_list=creatPoligonList();
                     for(int b=0; b<oplist.size(); b++){
                         if(oplist[b].parent_poligon<0 && oplist[b].label<10){
@@ -303,7 +304,6 @@ class TopologyMapping{
                 int indexOpeningBlocking=-1;
                 int totalSlenght=0;
                 int opIndex;
-
                 while(!cheek){
                     int empty_cell_count=0;
                     if(cw){
@@ -314,11 +314,57 @@ class TopologyMapping{
                     int rezCounter=0;
                     step_info.dir={0,0};
                     for(int s=0; s<=sercheLenthAntConect; s++){
-                        
                         opIndex=check_and_get_opening(step_info.end,cw?1:2,true);
+                        int opIndexGood=check_and_get_opening(step_info.end,cw?2:1,true);
+                        if(s==0 && opIndexGood==-1){
+                            opIndex=-1;
+                        }
+                        if(opIndex!=-1&&opIndexGood!=-1){
+                            if(!(oplist[opIndex].start==oplist[opIndexGood].end&&
+                               oplist[opIndex].end==oplist[opIndexGood].start)){
+                                point_int p1,p2;
+                                if(cw){
+                                    p1=oplist[opIndex].end;
+                                    p2=oplist[opIndexGood].start;
+                                }else{
+                                    p2=oplist[opIndex].start;
+                                    p1=oplist[opIndexGood].end;
+                                }
+                                p1.x-=step_info.end.x;
+                                p1.y-=step_info.end.y;
+                                p2.x-=step_info.end.x;
+                                p2.y-=step_info.end.y;
+
+                                double ang1=atan2(p1.y, p1.x);
+                                double ang2=atan2(p2.y, p2.x);
+                                double ang=ang1-ang2;
+                                if(abs(ang)>M_PI){
+                                    double newAng=abs(ang)-M_PI*2;
+                                    if(ang<0){
+                                        ang=-newAng;
+                                    }else ang=newAng;
+                                }
+                                ROS_INFO("%f,%f,%f,%i,%i,,%i",ang,ang1,ang2,opIndex,opIndexGood,targetIndex);
+                                ROS_INFO("%i,%i,%i,%i",oplist[opIndex].start.x,oplist[opIndex].start.y,oplist[opIndex].end.x,oplist[opIndex].end.y);
+                                ROS_INFO("%i,%i,%i,%i",oplist[opIndexGood].end.x,oplist[opIndexGood].end.y,oplist[opIndexGood].start.x,oplist[opIndexGood].start.y);
+                                if(s==0 && ang<0){
+                                    opIndex=-1;
+                                }
+                                else if(s==0){
+                                    opIndex=-1;
+                                    opIndexGood=-1;
+                                }
+                                else if(s!=0 && ang>0){
+                                    opIndex=-1;
+                                }
+                            }else if(s==0){
+                                opIndex=-1;
+                                opIndexGood=-1;
+                            }else opIndex=-1;
+                        }
                         
                         // found bad conection
-                        if((opIndex!=-1 && opIndex!=targetIndex) ||
+                        if(opIndex!=-1 ||
                             empty_cell_count>maxAntGap || s==sercheLenthAntConect){
                                 if(cw){
                                     //ROS_INFO("found no connection searching other direction");
@@ -329,7 +375,7 @@ class TopologyMapping{
                                     break;
                                 }else{
                                     if(poly.sidesIndex.size()>1){
-                                        if(opIndex!=-1 && opIndex==indexOpeningBlocking && false){
+                                        /*if(opIndex!=-1 && opIndex==indexOpeningBlocking && false){
                                             if(!moved && oplist[opIndex].parent_poligon<0){
                                                 for(int h=0; h<poly.sidesIndex.size();h++){
                                                     oplist[poly.sidesIndex[h]].moved=true;
@@ -364,7 +410,7 @@ class TopologyMapping{
                                                     break;
                                                 }
                                             }
-                                        }
+                                        }*/
 
                                         //ROS_INFO("Create new opening");
                                         //creat mising openign
@@ -397,8 +443,8 @@ class TopologyMapping{
                                     break;
                                 }
                         }
-                        
-                        opIndex=check_and_get_opening(step_info.end,cw?2:1,true);
+
+                        opIndex=opIndexGood;
 
                         //Good conection
                         if(opIndex!=-1){
@@ -414,7 +460,7 @@ class TopologyMapping{
                                     moved=moved?moved:oplist[opIndex].moved;
                                     targetIndex=opIndex;
                                     break;
-                                }else if(poly.sidesIndex.size()==2){//&& totalSlenght<=minimumSercheLenght){//Too small connection, flipping the openings
+                                }else if(poly.sidesIndex.size()==2){//Too small connection, flipping the openings
                                     //ROS_INFO("Small connection");
                                     oplist[targetIndex].parent_poligon=-1;
                                     if(oplist[i].fliped){//remove opening if flipped two times
@@ -424,6 +470,12 @@ class TopologyMapping{
                                         oplist[targetIndex].flip();
                                         oplist[i].flip();
                                         oplist[i].fliped=true;
+                                        if(check_and_get_opening(oplist[i].start,1,false,i)!=-1||
+                                           check_and_get_opening(oplist[i].end,2,false,i)!=-1)
+                                        oplist[i].label=12;
+                                        if(check_and_get_opening(oplist[targetIndex].start,1,false,targetIndex)!=-1||
+                                           check_and_get_opening(oplist[targetIndex].end,2,false,targetIndex)!=-1)
+                                        oplist[targetIndex].label=12;
                                         
                                     }
                                     i-=1;
@@ -435,7 +487,6 @@ class TopologyMapping{
                                 }else{
                                     //ROS_INFO("Found complete polygon");
                                     cheek=true;
-                                    if(poly.sidesIndex.size()==1 && s<dist(oplist[i].start,oplist[i].end)*2) break;
                                     complet=true;
                                     break;
                                 }
@@ -498,6 +549,7 @@ class TopologyMapping{
             if(poly_list[pIndex].inactiv) continue;
             for(int sideIndex=0;sideIndex<poly_list[pIndex].sidesIndex.size();sideIndex++){
                 int opIndex=poly_list[pIndex].sidesIndex[sideIndex];
+                if(oplist[opIndex].label!=2) continue;
                 vector<point_int> startS, endS;
                 for(int sids=0;sids<2;sids++){
                     for(int dir=0; dir<2;dir++){
@@ -1140,7 +1192,7 @@ class TopologyMapping{
             topoMapMsg.data[i]=-1;
         }
         for(int i=0; i<poly_list.size();i++){
-            vector<point_int> filedP=fillPoly(poly_list[i].poligon_points);
+            vector<point_int> filedP;//=fillPoly(poly_list[i].poligon_points);
             for(int j=0;j<filedP.size();j++){
                 int index=filedP[j].x+filedP[j].y*mapSizeX;
                 topometricMapMsg.polygonType[index]=poly_list[i].label;
