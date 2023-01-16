@@ -105,7 +105,6 @@ class TopologyMapping{
         
         while (ros::ok()){
             oplist.clear();
-
             topologyScan();
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
@@ -315,15 +314,25 @@ class TopologyMapping{
     bool checkOpening(opening o){
         for(int sids=0;sids<2;sids++){
             bool check=false;
-            point_int p=sids?o.end:o.start;
+            point_int *p=sids?&o.end:&o.start;
             point_int dir={0,1};
             for(int d=0;d<4;d++){
-                if(getMap(p.x+dir.x,p.y+dir.y,topMap)==100){
+                if(getMap(p->x+dir.x,p->y+dir.y,topMap)==100){
                     check=true;
                     break;
                 }
                 dir=rotate_dir(dir,true);
                 dir=rotate_dir(dir,true);
+            }
+            for(int d=0;d<2 && !check;d++){
+                ant_data step;
+                step.end=*p;
+                for(int s=0;s<10;s++){
+                    step=ant_step(step.end,d,step.dir,topMap);
+                    if(!step.emty_cell){
+                        check=true;
+                    }
+                }
             }
             if(!check) return false;
         }
@@ -384,12 +393,15 @@ class TopologyMapping{
         for(int sids=0; sids<2; sids++){
             for(int cw=0; cw<2; cw++){
                 ant_data step;
+                point_int endP;
                 step.dir={0,0};
                 int empty_count=0;
                 if(sids==0){
                     step.end=op.start;
+                    endP=op.end;
                 }else{
                     step.end=op.end;
+                    endP=op.start;
                 }
                 //will follow the wall for at least searchLenghtClean steps
                 for(int s=0; s<searchLenghtClean && empty_count<maxAntGap; s++){
@@ -405,27 +417,28 @@ class TopologyMapping{
                     }
                     
                     if(sids==0){
-                        int opIndex=check_and_get_opening(step.end,1,false,index);
-                        if(opIndex!=-1){
-                            vo.push_back(opIndex);
+                        vector<int> opIndex=check_and_get_all_opening(step.end,1,false,index);
+                        for(int m=0;m<opIndex.size();m++){
+                            vo.push_back(opIndex[m]);
                             int sepL=cw==1?s:-s;
                             vint.push_back(sepL);
                         }
                     }else{
-                        int opIndex=check_and_get_opening(step.end,2,false,index);
-                        if(opIndex!=-1){
+                        vector<int> opIndex=check_and_get_all_opening(step.end,2,false,index);
+                        for(int m=0;m<opIndex.size();m++){
                             //check if opening was found when the other side was searched
                             for(int index=0; index<vo.size(); index++){
-                                if(vo[index]==opIndex){
+                                if(vo[index]==opIndex[m]){
                                     vint[index]+=cw==0?s:-s;
                                     //remove the last fitting opening
-                                    if(dist(op.start,op.end)+vint[index]/extendDevider<dist(oplist[opIndex].start,oplist[opIndex].end)){
+                                    oplist[opIndex[m]].label=14;
+                                    /*if(dist(op.start,op.end)+vint[index]/extendDevider<dist(oplist[opIndex].start,oplist[opIndex].end)){
                                         oplist[opIndex].label=14;
                                         return true;
                                     }else{
                                         selfDel = false;
                                         return false;
-                                    }
+                                    }*/
                                     break;
                                 }
                             }
@@ -433,6 +446,7 @@ class TopologyMapping{
                     }
                     
                     step=ant_step(step.end,(bool)cw, step.dir,topMap);
+                    if(step.end==endP) break;
                 }
             }
         }
@@ -501,33 +515,11 @@ class TopologyMapping{
         holder=*o1h;
         *o1h=*o2h;
         *o2h=holder;
-
-        /*while(intersect_line(o1,o2) && c<inSearchLenght){
-            c+=1;
-            opening test=*o1;
-            step=ant_step(step.end,conection_cw[sides],step.dir,topMap);
-            if(!sides){
-                test.start=step.end;
-            }else{
-                test.end=step.end;
-            }
-            //if(!checkForWall(test,1,topMap))
-            *o1=test;
-        } 
-        c=0;
-        step=conections[sides];
-        while(intersect_line(o1,o2) && c<inSearchLenght){
-            c+=1;
-            opening test=*o1;
-            step=ant_step(step.end,!conection_cw[sides],step.dir,topMap);
-            if(!sides){
-                test.start=step.end;
-            }else{
-                test.end=step.end;
-            }
-            //if(!checkForWall(test,1,topMap))
-            *o1=test;
-        }*/
+        if(checkForWall(*o1,1,topMap)||checkForWall(*o2,1,topMap)){
+            holder=*o1h;
+            *o1h=*o2h;
+            *o2h=holder;
+        }
         //Check if the issue was sold otherwise delete the longest opening.
         if(intersect_line(o1,o2)){
             if(dist(o1->start,o1->end)<dist(o2->start,o2->end)){
@@ -689,10 +681,19 @@ class TopologyMapping{
     }
 
     void filterRemoveOpenings(int angleIndex){
+        for(int row=0; row<travGaps[angleIndex].size(); row++){
+            for(int index=0;index<travGaps[angleIndex][row].size();index++){
+                scanGroup sg=travGaps[angleIndex][row][index];
+                for(int m=sg.start;m<=sg.end; m++){
+                    if(getMapTransform(topMap,m,row,angleIndex)==100) continue;
+                    setMapTransform(topMap,m,row,angleIndex,0);
+                }
+            }
+        }
         for(int row=0; row<nonTravGaps[angleIndex].size(); row++){
             for(int index=0;index<nonTravGaps[angleIndex][row].size();index++){
                 scanGroup sg=nonTravGaps[angleIndex][row][index];
-                if(getMapTransform(Map,sg.start-1,row,angleIndex)==0 && getMapTransform(Map,sg.end+1,row,angleIndex)==0&&
+                if(//getMapTransform(Map,sg.start-1,row,angleIndex)==0 && getMapTransform(Map,sg.end+1,row,angleIndex)==0&&
                      getMapTransform(Map,sg.start-1,row,angleIndex)+getMapTransform(Map,sg.end+1,row,angleIndex)<99)
                         continue;
                 for(int m=sg.start;m<=sg.end; m++){
@@ -868,11 +869,6 @@ class TopologyMapping{
 
     void openingOptimization(vector<opening> newOplist){
         for(int index=0;index<newOplist.size();index++){
-            correctOpening(&newOplist[index],10);
-            if(!checkOpening(newOplist[index])) newOplist[index].label=14;
-            if(checkForWall(newOplist[index], 1,topMap))newOplist[index].label=12;
-            //remove_unnecessary_openings(topMap);
-
             if(newOplist[index].sideToMove!=3){
                 vector<point_int> intersectP;
                 vector<int> intersectIndex;
@@ -903,65 +899,82 @@ class TopologyMapping{
                     }else{
                         newOplist[index].end=moveToP;
                     }
+                    if(dist(newOplist[index].start,newOplist[index].end)<minGroupSize ){
+                        newOplist[index].label=14;
+                    }
+                    else if(checkForWall(newOplist[index],1,topMap)){
+                        newOplist[index].label=12;
+                    }
                 }
             }
-
+            //if(check_unnecessary_openings(newOplist[index],topMap)) newOplist[index].label=14;
         }
-        oplist.clear();
-        for(int index=0; index<newOplist.size();index++){
-            opening o=newOplist[index];
-            
-            //Move openings point such that they don't overlap another openings points
-            for(int sids=0; sids<2 && false;sids++){
-                ant_data step;
-                step.end=sids==0?o.start:o.end;
-                bool cheek=false;
-                int c=0;
-                while (!cheek && c<searchLenghtFitcoridor){
-                    c++;
-                    cheek=true;
-                    
-                    if(check_for_opening(step.end,3)){
-                        step=ant_step(step.end,sids==0,step.dir,topMap);
-                        if(sids==0){
-                            o.start=step.end;
-                        }else{
-                            o.end=step.end;
-                        }
-                        cheek=false;
-                        break;
-                    }
-                    
-                }
+        for(int i=0;i<oplist.size();i++){
+            for(int j=0;j<oplist.size();j++){
+                if(j==i) continue;
+                if(oplist[i].label>10) continue;
+                if(oplist[j].label>10) continue;
+                if(intersect_line(&oplist[i],&oplist[j]))
+                    fixOverlap(&oplist[i],&oplist[j],50);
             }
-            bool skip=false;
-            //Check if opening is overlapping another opening.
-            vector<int> dIndex;
-            for(int h=0; h<oplist.size() && o.label<10;h++){
-                if(oplist[h].label>10 || !intersect_line(&o,&oplist[h])) continue;
-                fixOverlap(&o,&oplist[h],searchLenghtFixOverlap);
-                if(oplist[h].label>10){
-                    dIndex.push_back(h);
-                }else if(o.label>10){
-                    for(int hI=0;hI<dIndex.size();hI++){
-                        oplist[dIndex[hI]].label=1;
-                    }
-                }
-            }
-            if(dist(o.start,o.end)<minGroupSize){
-                continue;
-            }
-            moveOpeningIntoCoridor(&o,topMap);
-            correctOpening(&o,10);
-            if(checkForWall(o, 1,topMap))o.label=12;
+        }
+        oplist=newOplist;
+        for(int i=0;i<oplist.size();i++){
+            if(oplist[i].label<10) cleanOpenings(i);
+        }
 
-            oplist.push_back(o);
-            oplist=newOplist;
-            if(oplist.back().label<10){
-                if(!cleanOpenings(oplist.size()-1)){
-                    newOplist[index].label=14;
+        
+        for(int index=0; index<oplist.size();index++){
+            for(int sids=0;sids<2;sids++){
+                point_int targetP=sids?oplist[index].end:oplist[index].start;
+                if(!check_for_opening(targetP,3,false,index)) continue;
+                vector<point_int> cwPoints;
+                vector<point_int> ccwPoints;
+                bool cw=true;
+                ant_data cwStep, ccwStep;
+                cwStep.end=targetP;
+                ccwStep.end=targetP;
+                for(int c=0;c<30;c++){
+                    if(cw){
+                        cwStep=ant_step(cwStep.end,cw,cwStep.dir,topMap);
+                        cwPoints.push_back(cwStep.end);
+                        if(!check_for_opening(cwStep.end,3,false,index)){
+                            for(int i=cwPoints.size()-2;i>=0;i--){
+                                vector<point_int*> pp=check_and_get_all_opening_pointers(cwPoints[i],3);
+                                for(int pindex=0; pindex<pp.size();pindex++){
+                                    *pp[pindex]=cwPoints[i+1];
+                                }
+                            }
+                            vector<point_int*> pOpening=check_and_get_all_opening_pointers(targetP,2);
+                            if(pOpening.size()!=0)
+                            *pOpening[0]=cwPoints[0];
+                            break;
+                        }
+                    }else{
+                        ccwStep=ant_step(ccwStep.end,cw,ccwStep.dir,topMap);
+                        ccwPoints.push_back(ccwStep.end);
+                        if(!check_for_opening(ccwStep.end,3,false,index)){
+                            for(int i=ccwPoints.size()-2;i>=0;i--){
+                                vector<point_int*> pp=check_and_get_all_opening_pointers(ccwPoints[i],3);
+                                for(int pindex=0; pindex<pp.size();pindex++){
+                                    *pp[pindex]=ccwPoints[i+1];
+                                }
+                            }
+                            vector<point_int*> pOpening=check_and_get_all_opening_pointers(targetP,1);
+                            if(pOpening.size()!=0)
+                            *pOpening[0]=ccwPoints[0];
+                            break;
+                        }
+                    }
+                    cw=!cw;
                 }
+
             }
+        }
+        for(int i=0;i<oplist.size();i++){
+            if(!checkOpening(oplist[i])) oplist[i].label=14;
+            if(check_unnecessary_openings(oplist[i],topMap)) oplist[i].label=14;
+            if(checkForWall(oplist[i],1,topMap)) oplist[i].label=12;
         }
     }
 
@@ -1006,52 +1019,23 @@ class TopologyMapping{
         for(int angleIndex=0; angleIndex<numberOfDir; angleIndex++){
             gapDetection(angleIndex);
         }  
+        for(int i=0;i<oplist.size();i++){
+            correctOpening(&oplist[i],10);
+        }
 
         //_____FIND OPENINGS_____
         vector<opening> newOplist;
         while(oplist.size()!=0){
             vector<int> ignorlist;
             if(!FindOpenings(0,&newOplist,&ignorlist)){
-                oplist[0].label=30;
-                if(!check_unnecessary_openings(oplist[0],topMap) || true)
-                    newOplist.push_back(oplist[0]);
+                //oplist[0].label=30;
+                newOplist.push_back(oplist[0]);
                 oplist.erase(oplist.begin());
-            }
-        }
-        oplist=newOplist;
-        for(int i=0;i<oplist.size();i++){
-            correctOpening(&oplist[i],10);
-        }
-        for(int i=0;i<oplist.size();i++){
-            int index=check_and_get_opening(oplist[i].end,2,false,i);
-            if(index!=-1){
-                if(dist(oplist[index].start,oplist[index].end)<
-                   dist(oplist[i].start,oplist[i].end)){
-                    oplist[i].label=14;
-                    continue;
-                }else oplist[index].label=14;
-            }
-            index=check_and_get_opening(oplist[i].start,1,false,i);
-            if(index!=-1){
-                if(dist(oplist[index].start,oplist[index].end)<
-                   dist(oplist[i].start,oplist[i].end)){
-                    oplist[i].label=14;
-                    continue;
-                }else oplist[index].label=14;
-            }
-        }
-        for(int i=0;i<oplist.size();i++){
-            for(int j=0;j<oplist.size();j++){
-                if(j==i) continue;
-                if(oplist[i].label>10) continue;
-                if(oplist[j].label>10) continue;
-                if(intersect_line(&oplist[i],&oplist[j]))
-                    fixOverlap(&oplist[i],&oplist[j],50);
             }
         }
         
         //__OPENING OPTIMIZATION_
-        //openingOptimization(newOplist);
+        openingOptimization(newOplist);
         
     }
 
@@ -1095,52 +1079,6 @@ class TopologyMapping{
         return p_int;
     }
 
-    bool intersect_line_angle(opening o1,opening o2, point_int *intersectPoint=NULL){
-        if(intersectPoint!=NULL){
-            *intersectPoint=findIntersectionPoint(o1,o2);
-        }
-        double l=.6;
-        double l1 = dist(o1.start,o1.end);
-        double l2 = dist(o2.start,o2.end);
-        point n1={((o1.end.x-o1.start.x)/l1)*l, ((o1.end.y-o1.start.y)/l1)*l};
-        point n2={((o2.end.x-o2.start.x)/l2)*l, ((o2.end.y-o2.start.y)/l2)*l};
-        point p1[]={{(double)o1.start.x-n1.x,(double)o1.start.y-n1.y},{(double)o1.end.x+n1.x,(double)o1.end.y+n1.y}};
-        point p2[]={{(double)o2.start.x-n2.x,(double)o2.start.y-n2.y},{(double)o2.end.x+n2.x,(double)o2.end.y+n2.y}};
-        point currentO[2], testingO[2];
-        for(int side=0;side<2;side++){
-            if(side==0){
-                currentO[0]=p1[0];
-                currentO[1]=p1[1];
-                testingO[0]=p2[0];
-                testingO[1]=p2[1];
-            }else{
-                currentO[0]=p2[0];
-                currentO[1]=p2[1];
-                testingO[0]=p1[0];
-                testingO[1]=p1[1];
-            }
-            double ang=atan2(currentO[1].y-currentO[0].y,currentO[1].x-currentO[0].x);
-            point oTest[]={testingO[0],testingO[1]};
-            point oTest3[]={testingO[0],testingO[1]};
-            double cosA=cos(-ang);
-            double sinA=sin(-ang);
-            for(int i=0; i<2;i++){
-                //using a 2d rotation matrix to rotate points
-                double newX=((oTest[i].x-currentO[0].x) *cosA-(oTest[i].y-currentO[0].y)*sinA);
-                double newY=((oTest[i].x-currentO[0].x) *sinA+(oTest[i].y-currentO[0].y)*cosA);
-                oTest[i].x=newX;
-                oTest[i].y=newY;
-            }
-
-            if(oTest[0].y<0 && oTest[1].y<0 || oTest[0].y>0 && oTest[1].y>0){ return false;}
-            else{
-                //ROS_INFO("%f, %f, %f, %f, %f",ang,oTest3[0].x,oTest3[0].y,oTest3[1].x,oTest3[1].y);
-                //ROS_INFO("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f",ang,oTest[0].x,oTest[0].y,oTest[1].x,oTest[1].y,currentO[0].x,currentO[0].y,currentO[1].x,currentO[1].y,testingO[0].x,testingO[0].y,testingO[1].x,testingO[1].y);
-                }
-        }
-        return true;
-    }
-
     bool FindOpenings(int targetIndex, vector<opening> *newOplist, vector<int> *ignorList){
         while (true){
             if(oplist[targetIndex].sideToMove==3){
@@ -1175,10 +1113,11 @@ class TopologyMapping{
                 }
                 if(dist(newOp.start,newOp.end)<minGroupSize) continue;
 
-                double d1=dist(interPoint[i],newOp.end);
-                double d2=dist(newOp.start,interPoint[i]);
+                //double d1=dist(interPoint[i],newOp.end);
+                //double d2=dist(newOp.start,interPoint[i]);
                 //double score=(d1-d2)*(d1-d2);
-                double score=d1*d1+d2*d2;
+                //double score=d1*d1+d2*d2;
+                double score=dist(newOp.start,newOp.end);
                 
                 //newOplist->push_back(newOp);
                 if(bestScore<0||score<bestScore){
@@ -1191,10 +1130,12 @@ class TopologyMapping{
                     bestScore=score;
                 }
             }
-            //return false;
+            
             if(selectedIndex==-1){
                 return false;
             }
+            //oplist.erase(oplist.begin()+targetIndex);
+            //return true;
             for(int i=0; i<ignorList->size(); i++){
                 if(ignorList->at(i)==selectedIndex) return false;
             }

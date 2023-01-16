@@ -20,12 +20,12 @@ float mapHight=0;
 //scan setings
 int minGroupSize=3;
 int minCoridorSize=2;
-int cfilterSize=2;
-int objectFilterMaxStep=6;
+int cfilterSize=1;
+int objectFilterMaxStep=25;
 double openingRemoveScale=1.4;
-int numberOfDir=3;
+int numberOfDir=4;
 int extendDevider=2;
-double dw=0.2;
+double dw=0.8;
 int searchLenghtFitcoridor=60;
 int searchLenghtFixOverlap=30;
 bool removeOpeningsFirst=true;
@@ -42,7 +42,7 @@ int voronoiRez=6;
 int minimumSercheLenght=5;
 
 //Debugging
-bool show_removed_openings=true;
+bool show_removed_openings=false;
 int **dMap;
 struct scanGroup{
     int start;
@@ -107,6 +107,10 @@ struct opening{
         center.y=(end.y-start.y)/2+start.y;
         return center;
     }
+};
+
+struct gapGrupe{
+    vector<opening> openings;
 };
 
 struct poligon{
@@ -273,8 +277,25 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
 } 
 
 bool checkForWall(opening o,int maximumWallCount, int** map){
+    for(int sids=0;sids<2;sids++){
+        point_int dir={1,0};
+        point_int testP=sids?o.end:o.start;
+        point_int endP=sids?o.start:o.end;
+        for(int d=0; d<4; d++){
+            if(getMap(testP.x+dir.x,testP.y+dir.y,map)==100){
+                point_int v={endP.x-testP.x,endP.y-testP.y};
+                double ang=v.x*dir.x+v.y*dir.y;
+                ang=ang/dist(testP,endP);
+                ang=acos(ang);
+                if(ang<(M_PI_4)) return true;
+            }
+            dir={-dir.y,dir.x};
+        }
+    }
+    
+    
     int wallcount=0;
-    double l=2;
+    double l=1;
     double opLenght=dist(o.start,o.end);
     point normdVop={(o.end.x-o.start.x)/(opLenght*l),(o.end.y-o.start.y)/(opLenght*l)};
     for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
@@ -358,7 +379,7 @@ bool ccw(point A,point B,point C){
 //Return true if line segments o1 and o2 intersect.
 bool intersect_line(opening *o1,opening *o2, point_int *intersectionPoint=NULL){
     point_int p1Max, p1Min, p2Max,p2Min;
-    double l=0;
+    double l=0.8;
     p1Max.x=std::max(o1->start.x,o1->end.x);
     p1Max.y=std::max(o1->start.y,o1->end.y);
     p1Min.x=std::min(o1->start.x,o1->end.x);
@@ -415,15 +436,53 @@ void moveOpeningIntoCoridor(opening *o, int **map){
 }
 
 //checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
-int check_and_get_opening(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
-    int oIndex=-1;
+vector<point_int*> check_and_get_all_opening_pointers(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
+    vector<point_int*> olist;
+    
+    for(int i=0; i<oplist.size() && (type==1||type==3); i++){
+        if(oplist[i].label<10 && (!only_standard_opening || oplist[i].label==1) &&
+            oplist[i].start==position){
+                if(i==exclude) continue;
+                olist.push_back(&oplist[i].start);
+        }
+    }
+    for(int i=0; i<oplist.size() && (type==2||type==3); i++){
+        if(oplist[i].label<10 && (!only_standard_opening || oplist[i].label==1) &&
+            oplist[i].end==position){
+                if(i==exclude) continue;
+                olist.push_back(&oplist[i].end);
+        }
+    }
+    return olist;
+}
+
+//checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
+vector<int> check_and_get_all_opening(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
+    vector<int> oIndex;
     
     for(int i=0; i<oplist.size(); i++){
         if(oplist[i].label<10 && (!only_standard_opening || oplist[i].label==1) &&
             (type==1 && oplist[i].start==position || type==2 && oplist[i].end==position ||
             type==3 && (oplist[i].start==position || oplist[i].end==position))){
                 if(i==exclude) continue;
+                oIndex.push_back(i);
+        }
+    }
+
+    return oIndex;
+}
+
+//checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
+int check_and_get_opening(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
+    int oIndex=-1;
+    
+    for(int i=0; i<oplist.size(); i++){
+        if(oplist[i].label<10 && (!only_standard_opening || oplist[i].label!=2) &&
+            (type==1 && oplist[i].start==position || type==2 && oplist[i].end==position ||
+            type==3 && (oplist[i].start==position || oplist[i].end==position))){
+                if(i==exclude) continue;
                 oIndex=i;
+                break;
         }
     }
 
@@ -431,10 +490,10 @@ int check_and_get_opening(point_int position, int type, bool only_standard_openi
 }
 
 //checks if a point is overlaping an opening start and end, type: 1 check for start, 2 check for end, 3 check for both.
-bool check_for_opening(point_int position, int type){
+bool check_for_opening(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
     bool testCheck=true;
     
-    if(check_and_get_opening(position, type)==-1) testCheck=false;
+    if(check_and_get_opening(position, type,only_standard_opening,exclude)==-1) testCheck=false;
 
     return testCheck;
 }
