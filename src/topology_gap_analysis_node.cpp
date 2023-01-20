@@ -498,10 +498,6 @@ class TopologyMapping{
         }
         int c=0;
         ant_data step=conections[sides];
-        /*oplist.push_back(*o1);
-        oplist.back().label=30;
-        oplist.push_back(*o2);
-        oplist.back().label=30;*/
         point_int *o1h,*o2h;
         if(!sides){
             o1h=&o1->start;
@@ -875,14 +871,13 @@ class TopologyMapping{
                 for(int index2=0;index2<newOplist.size();index2++){
                     if(index==index2) continue;
                     if(newOplist[index2].sideToMove!=3) continue;
-                    point_int p;
-                    if(!intersect_line(&newOplist[index],&newOplist[index2],&p)) continue;
-                    intersectP.push_back(p);
+                    if(!intersect_line(&newOplist[index],&newOplist[index2])) continue;
+                    intersectP.push_back(findIntersectionPoint(newOplist[index],newOplist[index2]));
                     intersectIndex.push_back(index2);
                 }
                 if(intersectP.size()>0){
                     point_int testP=newOplist[index].sideToMove==1?
-                                    newOplist[index].start:newOplist[index].end;
+                                    newOplist[index].end:newOplist[index].start;
                     double minLenght=dist(testP,intersectP[0]);
                     int bestIndex=intersectIndex[0];
                     for(int m=1;m<intersectP.size();m++){
@@ -909,6 +904,10 @@ class TopologyMapping{
             }
             //if(check_unnecessary_openings(newOplist[index],topMap)) newOplist[index].label=14;
         }
+        oplist=newOplist;
+        for(int i=0;i<oplist.size();i++){
+            if(!checkOpening(oplist[i])) oplist[i].label=14;
+        }
         for(int i=0;i<oplist.size();i++){
             for(int j=0;j<oplist.size();j++){
                 if(j==i) continue;
@@ -918,12 +917,15 @@ class TopologyMapping{
                     fixOverlap(&oplist[i],&oplist[j],50);
             }
         }
-        oplist=newOplist;
+        for(int i=0;i<oplist.size();i++){
+            if(check_unnecessary_openings(oplist[i],topMap)) oplist[i].label=14;
+            if(checkForWall(oplist[i],1,topMap)) oplist[i].label=12;
+        }
         for(int i=0;i<oplist.size();i++){
             if(oplist[i].label<10) cleanOpenings(i);
         }
 
-        
+        // move all points so they dont overlap
         for(int index=0; index<oplist.size();index++){
             for(int sids=0;sids<2;sids++){
                 point_int targetP=sids?oplist[index].end:oplist[index].start;
@@ -945,9 +947,26 @@ class TopologyMapping{
                                     *pp[pindex]=cwPoints[i+1];
                                 }
                             }
-                            vector<point_int*> pOpening=check_and_get_all_opening_pointers(targetP,2);
-                            if(pOpening.size()!=0)
-                            *pOpening[0]=cwPoints[0];
+                            vector<int> pOpening=check_and_get_all_opening(targetP,3);
+                            double minAng=-1;
+                            point_int *moveP=NULL;
+                            for(int i=0;i<pOpening.size();i++){
+                                point_int *sP, *mP;   
+                                if(oplist[pOpening[i]].start==targetP){
+                                    mP=&oplist[pOpening[i]].start;
+                                    sP=&oplist[pOpening[i]].end;
+                                }else{
+                                    mP=&oplist[pOpening[i]].end;
+                                    sP=&oplist[pOpening[i]].start;
+                                }
+                                double ang=angleBetweenLines(*sP,*mP,cwStep.end,cwStep.dir);
+                                if(minAng<0||ang<minAng){
+                                    minAng=ang;
+                                    moveP=mP;
+                                }
+                            }
+                            if(moveP!=NULL)
+                            *moveP=cwPoints[0];
                             break;
                         }
                     }else{
@@ -960,9 +979,26 @@ class TopologyMapping{
                                     *pp[pindex]=ccwPoints[i+1];
                                 }
                             }
-                            vector<point_int*> pOpening=check_and_get_all_opening_pointers(targetP,1);
-                            if(pOpening.size()!=0)
-                            *pOpening[0]=ccwPoints[0];
+                            vector<int> pOpening=check_and_get_all_opening(targetP,3);
+                            double minAng=-1;
+                            point_int *moveP=NULL;
+                            for(int i=0;i<pOpening.size();i++){
+                                point_int *sP, *mP;   
+                                if(oplist[pOpening[i]].start==targetP){
+                                    mP=&oplist[pOpening[i]].start;
+                                    sP=&oplist[pOpening[i]].end;
+                                }else{
+                                    mP=&oplist[pOpening[i]].end;
+                                    sP=&oplist[pOpening[i]].start;
+                                }
+                                double ang=angleBetweenLines(*sP,*mP,ccwStep.end,ccwStep.dir);
+                                if(minAng<0||ang<minAng){
+                                    minAng=ang;
+                                    moveP=mP;
+                                }
+                            }
+                            if(moveP!=NULL)
+                            *moveP=ccwPoints[0];
                             break;
                         }
                     }
@@ -971,11 +1007,7 @@ class TopologyMapping{
 
             }
         }
-        for(int i=0;i<oplist.size();i++){
-            if(!checkOpening(oplist[i])) oplist[i].label=14;
-            if(check_unnecessary_openings(oplist[i],topMap)) oplist[i].label=14;
-            if(checkForWall(oplist[i],1,topMap)) oplist[i].label=12;
-        }
+        
     }
 
 
@@ -1028,12 +1060,12 @@ class TopologyMapping{
         while(oplist.size()!=0){
             vector<int> ignorlist;
             if(!FindOpenings(0,&newOplist,&ignorlist)){
-                //oplist[0].label=30;
+                //oplist[0].label=5;
                 newOplist.push_back(oplist[0]);
                 oplist.erase(oplist.begin());
             }
         }
-        
+        //oplist=newOplist;
         //__OPENING OPTIMIZATION_
         openingOptimization(newOplist);
         

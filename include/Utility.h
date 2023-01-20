@@ -21,7 +21,7 @@ float mapHight=0;
 int minGroupSize=3;
 int minCoridorSize=2;
 int cfilterSize=1;
-int objectFilterMaxStep=25;
+int objectFilterMaxStep=40;
 double openingRemoveScale=1.4;
 int numberOfDir=4;
 int extendDevider=2;
@@ -42,7 +42,7 @@ int voronoiRez=6;
 int minimumSercheLenght=5;
 
 //Debugging
-bool show_removed_openings=false;
+bool show_removed_openings=true;
 int **dMap;
 struct scanGroup{
     int start;
@@ -194,6 +194,12 @@ void setMap(int x, int y,int value,int **map){
     if(y<0||y>mapSizeY) return;
 
     map[x][y]=value;
+}
+
+double angleBetweenLines(point_int A, point_int B, point_int P, point_int Q) {
+    double dot = (A.x-B.x)*(P.x-Q.x) + (A.y-B.y)*(P.y-Q.y);
+    double det = dist(A,B) + dist(P,Q);
+    return acos(det/dot);
 }
 
 //suport function for ant_step rotates the dir 
