@@ -1,4 +1,4 @@
-#include "Utility.h"                                
+#include "Utility.hh"                                
 
 class TopologyMapping{
     private:
@@ -34,6 +34,8 @@ class TopologyMapping{
     public:
         //Setup
         TopologyMapping(){
+            std::string config_file_path= ros::package::getPath("topology_mapping")+"/config/settings.conf";
+            load_config_file(config_file_path);
             subOccupancyMap= nh.subscribe("/topology_map_filterd",1,&TopologyMapping::updateMap, this);
             subOpeningList= nh.subscribe("/opening_list_int",1,&TopologyMapping::updateOplist, this);
             pubMapDebug=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_debug",5);
@@ -195,7 +197,7 @@ class TopologyMapping{
         return out;
     }
 
-    poligon creat_poligon_area(poligon poly){
+    poligon creat_poligon_area(poligon poly, int id){
         vector<point_int> points;
         vector<point_int> points_desplay;
         int oIndex=poly.sidesIndex[0];
@@ -205,12 +207,15 @@ class TopologyMapping{
             step_info.end=oplist[oIndex].start; 
             int rezCounter=poligonRez;
             step_info.dir={0,0};
+            vector<point_int> pointHolder;
+            vector<point_int> pointHolderLowRez;
+            point_int firtsOfFronter={-1,-1};
             for(int s=0; s<=sercheLenthAntConect; s++){
                 //don't save all point to save on resources
-                points.push_back(step_info.end);
+                pointHolder.push_back(step_info.end);
                 if(rezCounter>=poligonRez){
                     rezCounter=0;
-                    points_desplay.push_back(step_info.end);
+                    pointHolderLowRez.push_back(step_info.end);
                 }else{
                     rezCounter+=1;
                 }
@@ -221,14 +226,63 @@ class TopologyMapping{
                     }
                 }
                 if(newOIndex!=-1){
-                    points_desplay.push_back(step_info.end);
+                    pointHolderLowRez.push_back(step_info.end);
                     vector<point_int> np=fillPoints(oplist[newOIndex].end,oplist[newOIndex].start,0.7,true);
-                    for(int i=0;i<np.size();i++) points.push_back(np[i]);
-                    points_desplay.push_back(np[np.size()-1]);
+                    for(int i=0;i<np.size();i++) pointHolder.push_back(np[i]);
+                    pointHolderLowRez.push_back(np[np.size()-1]);
+                    for(int i=0;i<pointHolderLowRez.size();i++){
+                        points_desplay.push_back(pointHolderLowRez[i]);
+                    }
+                    pointHolderLowRez.clear();
+                    for(int i=0;i<pointHolder.size();i++){
+                        points.push_back(pointHolder[i]);
+                    }
+                    pointHolder.clear();
                     oIndex=newOIndex;
                     break;
                 }
                 step_info=ant_step(step_info.end,true,step_info.dir,topMap);
+                if(firtsOfFronter.x==-1 && step_info.emty_cell){
+                    firtsOfFronter=pointHolder.back();
+                    for(int i=0;i<pointHolderLowRez.size();i++){
+                        points_desplay.push_back(pointHolderLowRez[i]);
+                    }
+                    pointHolderLowRez.clear();
+                    for(int i=0;i<pointHolder.size();i++){
+                        points.push_back(pointHolder[i]);
+                    }
+                    pointHolder.clear();
+                }
+                if(firtsOfFronter.x!=-1 && !step_info.emty_cell){
+                    if(dist(firtsOfFronter,step_info.end)>=minGroupSize){
+                        opening newOp;
+                        newOp.end=firtsOfFronter;
+                        newOp.start=step_info.end;
+                        newOp.label=4;
+                        newOp.parent_poligon=id;
+                        poly.sidesIndex.push_back(oplist.size());
+                        oplist.push_back(newOp);
+                        vector<point_int> np=fillPoints(oplist.back().end,oplist.back().start,0.7,true);
+                        for(int i=0;i<np.size();i++) points.push_back(np[i]);
+                        points_desplay.push_back(step_info.end);
+                        points_desplay.push_back(np[np.size()-1]);
+                        for(int i=0;i<np.size();i++) pointHolder.push_back(np[i]);
+                    }else{
+                        firtsOfFronter=pointHolder.back();
+                        for(int i=0;i<pointHolderLowRez.size();i++){
+                            points_desplay.push_back(pointHolderLowRez[i]);
+                        }
+                        for(int i=0;i<pointHolder.size();i++){
+                            points.push_back(pointHolder[i]);
+                        }
+                    }
+                    pointHolder.clear();
+                    pointHolderLowRez.clear();
+                    firtsOfFronter={-1,-1};
+                }
+                if(s==sercheLenthAntConect){
+                    //ROS_INFO("error id %i",id);
+                }
             }                        
         }
         poly.poligon_points=points;
@@ -368,7 +422,6 @@ class TopologyMapping{
                                 }else{
                                     if(IndexBadC!=opIndex){
                                         opening newOp;
-                                        point_int d={0,0};
                                         newOp.label=3;
                                         newOp.start=oplist[IndexBadC].end;
                                         newOp.end=oplist[IndexBadC].start;
@@ -382,8 +435,8 @@ class TopologyMapping{
                                         //ROS_INFO("Create new opening");
                                         //creat mising openign
                                         opening newOp;
-                                        newOp.start=oplist[targetIndex].end;
-                                        newOp.end=oplist[lastIndex].start;
+                                        newOp.start=oplist[opIndex].end;
+                                        newOp.end=oplist[opIndex].start;
                                         //fitt new opening to coridor 
                                         newOp.label=2;
                                         newOp.parent_poligon=-2;
@@ -421,7 +474,7 @@ class TopologyMapping{
                                 }
                                 if(oplist[opIndex].parent_poligon==-1){
                                     //ROS_INFO("Found connection");
-                                    if(empty_cell_count_max>maxAntGap){
+                                    if(empty_cell_count_max>maxAntGap && false){
                                         opening newOp;
                                         newOp.label=2;
                                         if(cw){
@@ -500,7 +553,7 @@ class TopologyMapping{
                         }
                         poly.label=label;
                         poly_list.push_back(poly);
-                        poly_list[poly_list.size()-1]=creat_poligon_area(poly_list[poly_list.size()-1]);
+                        poly_list[poly_list.size()-1]=creat_poligon_area(poly_list[poly_list.size()-1],poly_list.size()-1);
                         poly_list[poly_list.size()-1].center=get_poligon_center(poly_list[poly_list.size()-1].poligon_points);
 
                     }else if(cheek){
@@ -525,7 +578,205 @@ class TopologyMapping{
         return poly_list;
     }
 
+    vector<poligon> optimize_intersection(vector<poligon> poly_list, int pIndex){
+        int sLenght=6000;
+        if(poly_list[pIndex].inactiv) return poly_list;
+        //if(pIndex!=9) continue;
+        vector<vector<point_int>> walls;
+        vector<point_int> wallSharingOpenings;
+        vector<int> startIndex;
+        walls.resize(poly_list[pIndex].sidesIndex.size());
+        wallSharingOpenings.resize(poly_list[pIndex].sidesIndex.size());
+        bool del=false;
+        for(int sideIndex=0;sideIndex<poly_list[pIndex].sidesIndex.size();sideIndex++){
+            int opIndex=poly_list[pIndex].sidesIndex[sideIndex];
+            wallSharingOpenings[sideIndex].x=opIndex;
+            vector<point_int> currentWall;
+            int wallStart=-1, otherOpPos=-1, wallEnd=-1;
+            for(int dir=0; dir<2;dir++){;
+                ant_data step;
+                step.end=oplist[opIndex].start;
+                bool cw=dir;
+                
+                if(!dir){
+                    currentWall.push_back(step.end);
+                }
+                for(int s=0;s<sLenght;s++){
+                    if(!dir){
+                        int checkOp=check_and_get_opening(step.end,2,false);
+                        if(checkOp==opIndex){
+                            wallStart=currentWall.size()/2;
+                            break;
+                        }else if(checkOp!=-1){
+                            wallStart=0;
+                            break;
+                        }
+                    }else{
+                        int checkOp=check_and_get_opening(step.end,2,false,opIndex);
+                        for(int i=0;i<poly_list[pIndex].sidesIndex.size();i++){
+                            if(checkOp!=poly_list[pIndex].sidesIndex[i]) continue;
+                            otherOpPos=currentWall.size()-1;
+                            wallSharingOpenings[sideIndex].y=checkOp;
+                            break;
+                        }
+                        checkOp=check_and_get_opening(step.end,1,false,opIndex);
+                        if(checkOp==wallSharingOpenings[sideIndex].y){
+                            wallEnd=otherOpPos+(currentWall.size()-otherOpPos)/2;
+                            break;
+                        } else if(checkOp!=-1){
+                            wallEnd=currentWall.size();
+                            break;
+                        }
+                    }
+                    step=ant_step(step.end,cw,step.dir,topMap);
+                    if(step.emty_cell) continue;
+                    if(!dir){
+                        currentWall.insert(currentWall.begin(),step.end);
+                    }else{
+                        currentWall.push_back(step.end);
+                    }
+                }
+            }
+            if(wallEnd==-1){
+                poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                del=true;
+                break;
+            }
+            walls[sideIndex].resize(wallEnd-wallStart);
+            for(int i=0;i<wallEnd-wallStart;i++){
+                walls[sideIndex][i]=currentWall[i+wallStart];
+            }
+        
+        }
+        if(del) return poly_list;
+        for(int sideIndex=0;sideIndex<poly_list[pIndex].sidesIndex.size();sideIndex++){
+            double bestScore=-1;
+            int bestINdex=0;
+            for(int wallIndex=1;wallIndex<walls[sideIndex].size()-1;wallIndex++){
+                double d1=dist(walls[sideIndex][wallIndex],oplist[wallSharingOpenings[sideIndex].x].end);
+                double d2=dist(walls[sideIndex][wallIndex],oplist[wallSharingOpenings[sideIndex].y].start);
+                double score=d1*d1+d2*d2;
+                if(bestScore<0||score<bestScore){
+                    bestScore=score;
+                    bestINdex=wallIndex;
+                }
+            }
+            startIndex.push_back(bestINdex);
+            oplist[wallSharingOpenings[sideIndex].x].start=walls[sideIndex][bestINdex];
+            oplist[wallSharingOpenings[sideIndex].y].end=walls[sideIndex][bestINdex+1];
+        }
+        poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
+        poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
+        int listIndex=0;
+        for(int sideIndex=0;sideIndex<poly_list[pIndex].sidesIndex.size();sideIndex++){
+            int opIndex=poly_list[pIndex].sidesIndex[sideIndex];
+            vector<point_int>* secondList;
+            int secondStart=-1;
+            for(int i=0;i<walls.size();i++){
+                if(opIndex==wallSharingOpenings[i].y){
+                    secondList=&walls[i];
+                    secondStart=startIndex[i];
+                }
+            }
+            if(secondStart==-1){
+                poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                break;
+            }
+            vector<point_int> startS,endS;
+            for(int i=startIndex[listIndex];i>=0;i--){
+                startS.push_back(walls[listIndex][i]);
+            }
+            for(int i=secondStart+1;i<secondList->size();i++){
+                endS.push_back(secondList->at(i));
+            }
+            listIndex++;
+            opening test, hbest, best;
+            test=oplist[opIndex];
+            best=test;
+            hbest=test;
+            double bestScore=0, bestLength=0;
+            bool first=true, changed=false;
+            int sIndex=0, eIndex=0, decrisCount=0;
+            while(true){
+                //ROS_INFO("%i, %i, %i, %i",startS[sI].x,startS[sI].y,endS[eI].x,endS[eI].y);
+                if(sIndex+1<startS.size() && (eIndex+1>=endS.size() || 
+                    dist(startS[sIndex+1],endS[eIndex])<dist(startS[sIndex],endS[eIndex+1]))){
+                    sIndex+=1;
+                }else if(eIndex+1<endS.size()){
+                    eIndex+=1;
+                }else{
+                    best=hbest;
+                    changed=true;
+                    break;
+                }
+                test.start=startS[sIndex];
+                test.end=endS[eIndex];
+                double lenght=dist(test.start,test.end);
+                if(lenght<minGroupSize) break;
+                if(first || lenght<bestLength){
+                    bestLength=lenght;
+                }else{
+                    if(decrisCount>=4){
+                        best=hbest;
+                        changed=true;
+                        decrisCount=0;
+                    }else decrisCount+=1;
+                }
+                double score=lenght+dw*DFunction(dist(test.get_center(),poly_list[pIndex].center)); //dist(test.get_center(),poly_list[pIndex].center);
+                if(first || score<bestScore){
+                    first=false;
+                    bestScore=score;
+                    hbest=test;
+                }
+                
+            }
+            //ROS_INFO("%i, %i, %i, %i",best.start.x,best.start.y,best.end.x,best.end.y);
+            if(!checkForWall(best,1,topMap))
+            oplist[opIndex]=best;
+            if(!changed){
+                if(poly_list[pIndex].sidesIndex.size()<=3){
+                    poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                    break;
+                }else{
+                    oplist[opIndex].parent_poligon=-1;
+                    oplist[opIndex].label=26;
+                    poly_list[pIndex].sidesIndex.erase(poly_list[pIndex].sidesIndex.begin()+sideIndex);
+                    sideIndex-=1;
+                }
+            }
+        }
+        poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
+        poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
+        return poly_list;
+    }
+
     vector<poligon> optimize_intersection_openings(vector<poligon> poly_list){
+        for(int pIndex=0;pIndex<poly_list.size();pIndex++){
+            poly_list=optimize_intersection(poly_list,pIndex);
+        }
+        //remove polygons tagged for removal (polygons with inactive==true)
+        for(int b=0; b<poly_list.size(); b++){
+            if(poly_list[b].inactiv){
+                for(int v=0;v<oplist.size();v++){
+                    if(oplist[v].label>10) continue;
+                    if(oplist[v].parent_poligon>b) oplist[v].parent_poligon--;
+                }
+                poly_list.erase(poly_list.begin()+b);
+                b-=1;
+            }
+        }
+        return poly_list;
+    }
+
+    double DFunction(double length){
+        double minDistToCenter=4;
+        double maxPenalty=1000;
+        if(length>minDistToCenter) return (length-minDistToCenter);
+        
+        return maxPenalty-(maxPenalty/minDistToCenter*length);
+    }
+
+    vector<poligon> optimize_intersection_openings2(vector<poligon> poly_list){
         int sLenght=6000;
         for(int pIndex=0;pIndex<poly_list.size();pIndex++){
             if(poly_list[pIndex].inactiv) continue;
@@ -547,6 +798,20 @@ class TopologyMapping{
                             }
                         }
                         vector<int> indexListTpoint=check_and_get_all_opening(step.end,3,false,opIndex);
+                        
+                        /*bool test=true;
+                        for(int i1=0;i1<indexListTpoint.size() && test;i1++){
+                            bool t=false;
+                            for(int i2=0;i2<poly_list[pIndex].sidesIndex.size() && !test;i2++){
+                                if(indexListTpoint[i1]==poly_list[pIndex].sidesIndex[i2]){
+                                    t=true;
+                                }
+                            }
+                            if(dir && t) test=false;
+                            if(!dir && !t) test=false;
+                        }
+                        if(!test)break;*/
+
                         vector<int> indexListTp2=check_and_get_all_opening(p2,3,false,opIndex);
                         bool test=false;
                         for(int i1=0;i1<indexListTpoint.size() && !test;i1++){
@@ -634,7 +899,7 @@ class TopologyMapping{
                     }
                 }
             }
-            poly_list[pIndex]=creat_poligon_area(poly_list[pIndex]);
+            poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
             poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
         }
         //remove polygons tagged for removal (polygons with inactive==true)
@@ -856,7 +1121,6 @@ class TopologyMapping{
 
                     case 4://path connected to multiple intersection
                         label=76;
-                        poly.center=get_poligon_center(poly.poligon_points);
                         break;
 
                     case 5://path with potensial unexplord area 
@@ -866,10 +1130,30 @@ class TopologyMapping{
                     default:
                         break;
                     }
-                    if(oplist[i].parent_poligon==0)
+                    /*if(oplist[i].parent_poligon==0)
                     for(int p=0;p<poly.sidesIndex.size();p++){
                         oplist[poly.sidesIndex[p]].conected_to_path=poly_list.size();
+                    }*/
+                    if(label==76){
+                        for(int p=0;p<poly.sidesIndex.size();p++){
+                            oplist[poly.sidesIndex[p]].conected_to_path=-1;
+                        }
+                        poligon newPolly;
+                        for(int j=0;j<poly.sidesIndex.size();j++){
+                            opening newOp;
+                            newOp.start=oplist[poly.sidesIndex[j]].end;
+                            newOp.end=oplist[poly.sidesIndex[j]].start;
+                            newOp.label=2;
+                            newOp.parent_poligon=poly_list.size();
+                            newPolly.sidesIndex.push_back(oplist.size());
+                            oplist.push_back(newOp);
+                        }
+                        newPolly.label=label;
+                        poly_list.push_back(newPolly);
+                        poly_list=optimize_intersection(poly_list,poly_list.size()-1);
+                        continue;
                     }
+
                     poly.label=label;
                     poly_list.push_back(poly);
                     for(int m=0;m<poly.sidesIndex.size();m++){
@@ -1051,10 +1335,10 @@ class TopologyMapping{
                     o2.end=oplist[poly_list[polyIndex].sidesIndex[sideIndex+1]].get_center();
                 }
                 vector<point_int> np;
-                if((label==30||label==76)&&!checkForWall(o,1,topMap)){
+                if((label==30||label==76)&&!checkIfObstructed(o.start,o.end,topMap)){
                     np.push_back(oCenter);
                     np.push_back(center);
-                }else if((label==64||label==28)&&!checkForWall(o2,1,topMap)){
+                }else if((label==64||label==28)&&!checkIfObstructed(o2.start,o2.end,topMap)){
                     np.push_back(o2.start);
                     np.push_back(o2.end);
                     sideIndex+=1;
@@ -1072,7 +1356,7 @@ class TopologyMapping{
                     for(int n=0;n<vp.size();n+=voronoiRez){
                         np.push_back(vp[n]);
                         o.start=vp[n];
-                        if((label==30||label==76) && !checkForWall(o,1,topMap)){
+                        if((label==30||label==76) && !checkIfObstructed(o.start,o.end,topMap)){
                             toC=true;
                             np.push_back(center);
                             break;
@@ -1265,16 +1549,17 @@ int main(int argc, char** argv){
 
     ROS_INFO("Topology Mapping Started.");
     bool done=false;
-    while(!done){
+    topMapping.spin();
+    /*while(!done){
         try{
-            topMapping.spin();
+            
             done=true;
         }
         catch(...){
             ROS_INFO("rutin stopt restaring...");
         }
 
-    }
+    }*/
     
     
     return 0;

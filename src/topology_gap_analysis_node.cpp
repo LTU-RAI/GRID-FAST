@@ -1,4 +1,8 @@
-#include "Utility.h"                                
+#include "Utility.hh"      
+#include "MapHandler.hh"
+#include "MapTransform.hh"
+#include "GapHandler.hh"
+#include "MapFilter.hh"                          
 
 class TopologyMapping{
     private:
@@ -26,13 +30,20 @@ class TopologyMapping{
         int **scanMapOutTransform;
         vector<vector<vector<scanGroup>>> travGaps;
         vector<vector<vector<scanGroup>>> nonTravGaps;
-        vector<vector<vector<mapTransform>>> mapTransformList;
+        vector<mapTransformMap> mapTransformList;
+
+        MapHandler map, FilteredMap;
+        MapTransform transform;
+        GapHandler gaps;
+        MapFilter filter;
         
 
 
     public:
         //setup
         TopologyMapping(){
+            std::string config_file_path= ros::package::getPath("topology_mapping")+"/config/settings.conf";
+            load_config_file(config_file_path);
             subOccupancyMap= nh.subscribe("/map",1,&TopologyMapping::updateMap, this);
             pubTopoMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_filterd",5);
             pubdMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_d",5);
@@ -104,6 +115,16 @@ class TopologyMapping{
         ros::Rate rate(100); // Hz
         
         while (ros::ok()){
+            /*ROS_INFO("g1");
+            transform.updateTransform(&map);
+            ROS_INFO("g2");
+            gaps.analysis(&map,&transform);
+            ROS_INFO("g3");
+            FilteredMap.updateMap(&map);
+            ROS_INFO("g4");
+            filter.filterMap(&FilteredMap,&transform,&gaps);
+            ROS_INFO("g5");*/
+
             oplist.clear();
             topologyScan();
             //for a cleaner output, fitToCorridor is used once more
@@ -192,7 +213,7 @@ class TopologyMapping{
                 ySize=std::abs(d2.x-d2.y)+1;
                 xSize=std::abs(d1x.x-d1x.y)+1;
             }
-            vector<vector<mapTransform>> tMap;
+            mapTransformMap tMap;
             tMap.resize(ySize);
             cosA=cos(rotation);
             sinA=sin(rotation);
@@ -202,7 +223,7 @@ class TopologyMapping{
                     int newY=int(std::round(((x-xSize/2)*sinA+(y-ySize/2)*cosA)+ySize/2));
                     if(newX<0 || newX>=mapSizeX) continue;
                     if(newY<0 || newY>=mapSizeY) continue;
-                    mapTransform T;
+                    mapTransformCell T;
                     T.rpos.x=newX;
                     T.rpos.y=newY;
                     T.tpos.x=x;
@@ -287,6 +308,15 @@ class TopologyMapping{
 
     //Get new occupancy map and move its value into Map.
     void updateMap(const nav_msgs::OccupancyGrid& mapMsg){
+        vector<int> data;
+        data.resize(mapMsg.data.size());
+        for(int index=0;index<mapMsg.data.size();index++){
+            data[index]=mapMsg.data[index];
+        }
+        /*ROS_INFO("r1");
+        map.updateMap(data,mapMsg.info.width,mapMsg.info.height,
+                      mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y);
+        ROS_INFO("r2");*/
         int width=mapMsg.info.width;
         int height=mapMsg.info.height;
         resolution=mapMsg.info.resolution;
@@ -589,7 +619,7 @@ class TopologyMapping{
             int cfilter=0;
             int cGroupeSize=0;
             for(int j=0;j<mapTransformList[angleIndex][i].size();j++){
-                mapTransform mt=mapTransformList[angleIndex][i][j];
+                mapTransformCell mt=mapTransformList[angleIndex][i][j];
                 //Finde groups
                 if(Map[mt.rpos.x][mt.rpos.y]==0){ //&& getMapTransform(Map,mt.tpos.x,i+1,angleIndex)==0){
                     //check if space is free
@@ -1206,6 +1236,7 @@ class TopologyMapping{
                 topoMapMsg.data[index]=topMap[x][y];
             }
         }
+        pubTopoMap.publish(topoMapMsg);
         for(int oi=0;oi<oplist.size();oi++){
             for(int i=0;i<oplist[oi].occupied_points.size();i++){
                 dMap[oplist[oi].occupied_points[i].x][oplist[oi].occupied_points[i].y]=100;
@@ -1213,7 +1244,6 @@ class TopologyMapping{
             dMap[oplist[oi].start.x][oplist[oi].start.y]=0;
             dMap[oplist[oi].end.x][oplist[oi].end.y]=50;
         }
-        pubTopoMap.publish(topoMapMsg);
         for(int y=0; y<mapSizeY;y++){
             for(int x=0;x<mapSizeX;x++){  
                 int index=x+y*mapSizeX;            

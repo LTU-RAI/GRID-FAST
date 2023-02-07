@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD 14)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  roslib
   rospy
   std_msgs
   nav_msgs
@@ -116,6 +117,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
+  INCLUDE_DIRS config
   CATKIN_DEPENDS message_runtime
 #  LIBRARIES topology_mapping
 #  CATKIN_DEPENDS roscpp rospy std_msgs
@@ -146,9 +148,21 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
+add_library(topology_map_handler_class src/MapHandler.cpp)
+add_dependencies(topology_map_handler_class ${topology_gap_analysis_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(topology_map_handler_class ${catkin_LIBRARIES})
+add_library(topology_map_transform_class src/MapTransform.cpp)
+add_dependencies(topology_map_transform_class ${topology_gap_analysis_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(topology_map_transform_class ${catkin_LIBRARIES})
+add_library(topology_gap_handler_class src/GapHandler.cpp)
+add_dependencies(topology_gap_handler_class ${topology_gap_analysis_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(topology_gap_handler_class ${catkin_LIBRARIES})
+add_library(topology_map_filter_class src/MapFilter.cpp)
+add_dependencies(topology_map_filter_class ${topology_gap_analysis_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(topology_map_filter_class ${catkin_LIBRARIES})
 add_executable(topology_gap_analysis_node src/topology_gap_analysis_node.cpp)
 add_dependencies(topology_gap_analysis_node ${topology_gap_analysis_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(topology_gap_analysis_node ${catkin_LIBRARIES})
+target_link_libraries(topology_gap_analysis_node topology_map_handler_class topology_map_transform_class topology_gap_handler_class topology_map_filter_class ${catkin_LIBRARIES})
 add_executable(topology_mapping_node src/topology_mapping_node.cpp)
 add_dependencies(topology_mapping_node ${topology_mapping_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(topology_mapping_node ${catkin_LIBRARIES})

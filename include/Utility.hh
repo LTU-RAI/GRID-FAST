@@ -1,6 +1,10 @@
+#pragma once
+
+
 #include "ros/ros.h"
-#include <math.h>
-#include <vector>
+#include <ros/package.h>
+#include "datatypes.hh"
+#include "GetConfig.hh"
 #include <nav_msgs/OccupancyGrid.h>
 #include <jsk_recognition_msgs/PolygonArray.h>
 #include <geometry_msgs/PolygonStamped.h>
@@ -10,147 +14,24 @@
 #include <topology_mapping/topometricMap.h>
 using namespace std;
 
-//Map setings
-int mapSizeX=10;
-int mapSizeY=10;
-float resolution=0;
-float mapOffsetX=0;
-float mapOffsetY=0;
-float mapHight=0;
-//scan setings
-int minGroupSize=3;
-int minCoridorSize=2;
-int cfilterSize=1;
-int objectFilterMaxStep=40;
-double openingRemoveScale=1.4;
-int numberOfDir=4;
-int extendDevider=2;
-double dw=0.8;
-int searchLenghtFitcoridor=60;
-int searchLenghtFixOverlap=30;
-bool removeOpeningsFirst=true;
+#define MAP_OCCUPIED 100
+#define MAP_UNOCCUPIED 0
+#define MAP_UNKNOWN -1
 
-//ant para
-int searchLenghtClean=10;
-int sercheLenthAnt=600;
-int sercheLenthAntConect=2000;
-int sercheLenthAntConectPath=2000;
-int maxAntGap=4;
-int poligonRez=4;
-int poligonRezPath=10;
-int voronoiRez=6;
-int minimumSercheLenght=5;
 
-//Debugging
-bool show_removed_openings=true;
 int **dMap;
-struct scanGroup{
-    int start;
-    int end;
-    int row;
-    vector<scanGroup*> prevGroup;
-    vector<scanGroup*> nextGroup;
-};
 
-struct point{
-    double x;
-    double y;
-};
-struct point_int{
-    int x;
-    int y;
-
-    point convert_to_point(double resulution, int offset=0){
-        point p;
-        p.x=(x-offset)*resulution;
-        p.y=(y-offset)*resulution;
-        return p;
-    }
-};
-
-struct mapTransform{
-    point_int tpos, rpos;
-};
-
-double dist(point_int p1, point_int p2){
-    point_int d={p1.x-p2.x,p1.y-p2.y};
-    return sqrt(d.x*d.x+d.y*d.y);
-}
 
 bool operator==(const point_int& lhs, const point_int& rhs)
 {
     return lhs.x==rhs.x && lhs.y==rhs.y;
 }
 
-struct opening{
-    point_int start;
-    point_int end;
-    vector<point_int> occupied_points;
-    int sideToMove=3;//1:start,2:end,3:none
-    int angle;
-    bool start_is_outside;
-    int label=1;
-    int parent_poligon=-1;
-    bool fliped=false;
-    bool moved=false;
-    int conected_to_path=-1;
 
-    void flip(){
-        point_int t=start;
-        start=end;
-        end=t;
-    }
-
-    point_int get_center(){
-        point_int center={0,0};
-        center.x=(end.x-start.x)/2+start.x;
-        center.y=(end.y-start.y)/2+start.y;
-        return center;
-    }
-};
-
-struct gapGrupe{
-    vector<opening> openings;
-};
-
-struct poligon{
-    point_int center={0,0};
-    vector<int> sidesIndex;
-    vector<point_int> poligon_points;
-    vector<point_int> poligon_points_desplay;
-    vector<int> connectedPoligons;
-    vector<vector<point_int>> connectedPaths;
-    int label=1;
-    bool inactiv=false;
-    bool path=false;
-    void add_point(point_int p, bool cw){
-        if(cw){
-            poligon_points.push_back(p);
-        }else{
-            poligon_points.insert(poligon_points.begin(),p);
-        }
-    }
-    void add_point_d(point_int p, bool cw){
-        if(cw){
-            poligon_points_desplay.push_back(p);
-        }else{
-            poligon_points_desplay.insert(poligon_points_desplay.begin(),p);
-        }
-    }
-    void add_sideIndex(int index, bool cw){
-        if(cw){
-            sidesIndex.push_back(index);
-        }else{
-            sidesIndex.insert(sidesIndex.begin(),index);
-        }
-    }
-};
-
-struct ant_data{
-    point_int dir={0,0};
-    point_int end;
-    bool emty_cell=false;
-};
+double dist(point_int p1, point_int p2){
+    point_int d={p1.x-p2.x,p1.y-p2.y};
+    return sqrt(d.x*d.x+d.y*d.y);
+}
 
 vector<opening> oplist;
 
@@ -282,6 +163,21 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
     return step;
 } 
 
+// Retrun number of cells is wall overlapt by a ray between p1 and p2
+int checkForWallRay(point_int p1, point_int p2, int** map){
+    int wallcount=0;
+    double l=1;
+    double opLenght=dist(p1,p2);
+    point normdVop={(p2.x-p1.x)/(opLenght*l),(p2.y-p1.y)/(opLenght*l)};
+    for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
+        point_int pp={p1.x+(int)(std::round(normdVop.x*wallScan)), p1.y+(int)(std::round(normdVop.y*wallScan))};
+        if(getMap(pp.x,pp.y,map)==100){
+            wallcount+=1;
+        }
+    }
+    return wallcount;
+}
+
 bool checkForWall(opening o,int maximumWallCount, int** map){
     for(int sids=0;sids<2;sids++){
         point_int dir={1,0};
@@ -300,22 +196,34 @@ bool checkForWall(opening o,int maximumWallCount, int** map){
     }
     
     
-    int wallcount=0;
-    double l=1;
-    double opLenght=dist(o.start,o.end);
-    point normdVop={(o.end.x-o.start.x)/(opLenght*l),(o.end.y-o.start.y)/(opLenght*l)};
-    for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
-        point_int pp={o.start.x+(int)(std::round(normdVop.x*wallScan)), o.start.y+(int)(std::round(normdVop.y*wallScan))};
-        if(getMap(pp.x,pp.y,map)==100){
-            wallcount+=1;
-        }
-    }
+    int wallcount=checkForWallRay(o.start,o.end,map);
     if(wallcount<maximumWallCount){
         return false;
     }else{
         return true;
     }
 }
+
+bool checkIfObstructed(point_int p1, point_int p2, int** map){
+    double lenght=dist(p1,p2);
+    point normal={(p2.y-p1.y)/(lenght)*minGroupSize/2,-(p2.x-p1.x)/(lenght)*minGroupSize/2};
+    point_int tp1=p1, tp2=p2;
+    if(checkForWallRay(tp1,tp2,map)>0) return true;
+    tp1.x=std::round(p1.x+normal.x);
+    tp1.y=std::round(p1.y+normal.y);
+    tp2.x=std::round(p2.x+normal.x);
+    tp2.y=std::round(p2.y+normal.y);
+    if(checkForWallRay(tp1,tp2,map)>0) return true;
+    tp1.x=std::round(p1.x-normal.x);
+    tp1.y=std::round(p1.y-normal.y);
+    tp2.x=std::round(p2.x-normal.x);
+    tp2.y=std::round(p2.y-normal.y);
+    if(checkForWallRay(tp1,tp2,map)>0) return true;
+
+    return false;
+}
+
+
 
 bool check_unnecessary_openings(opening o,int** map){
     int maxSteps=int(std::round(dist(o.start,o.end)*openingRemoveScale));
@@ -421,6 +329,10 @@ bool intersect_line(opening *o1,opening *o2, point_int *intersectionPoint=NULL){
         }
     }
     return false;*/
+}
+
+void print(string s){
+    ROS_INFO("%s",s.c_str());
 }
 
 //Move an opening to the bigest opening of two walls
@@ -807,3 +719,4 @@ void fillPoly(vector<point_int> nPL, int value, int** map){
         }
     }
 }*/
+
