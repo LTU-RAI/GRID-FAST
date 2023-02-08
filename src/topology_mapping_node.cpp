@@ -110,6 +110,7 @@ class TopologyMapping{
                         }
                     }
                     poly_list=optimize_intersection_openings(poly_list);
+                    poly_list=optimize_intersection_openings(poly_list);
                     if(poly_list.size()>0){
                         poly_list=creatPathPoligons(poly_list);
                         poly_list=generat_robot_path(poly_list);
@@ -243,7 +244,7 @@ class TopologyMapping{
                 }
                 step_info=ant_step(step_info.end,true,step_info.dir,topMap);
                 if(firtsOfFronter.x==-1 && step_info.emty_cell){
-                    firtsOfFronter=pointHolder.back();
+                    firtsOfFronter=step_info.end;
                     for(int i=0;i<pointHolderLowRez.size();i++){
                         points_desplay.push_back(pointHolderLowRez[i]);
                     }
@@ -282,6 +283,9 @@ class TopologyMapping{
                 }
                 if(s==sercheLenthAntConect){
                     //ROS_INFO("error id %i",id);
+                    poly.poligon_points.clear();
+                    poly.poligon_points_desplay.clear();
+                    return poly;
                 }
             }                        
         }
@@ -553,8 +557,11 @@ class TopologyMapping{
                         }
                         poly.label=label;
                         poly_list.push_back(poly);
-                        poly_list[poly_list.size()-1]=creat_poligon_area(poly_list[poly_list.size()-1],poly_list.size()-1);
-                        poly_list[poly_list.size()-1].center=get_poligon_center(poly_list[poly_list.size()-1].poligon_points);
+                        poly_list.back()=creat_poligon_area(poly_list.back(),poly_list.size()-1);
+                        if(poly_list.back().poligon_points.size()==0){
+                            poly_list=remove_parent_poligon(poly_list,poly_list.back().sidesIndex[0], true, true);
+                        }else
+                        poly_list.back().center=get_poligon_center(poly_list.back().poligon_points);
 
                     }else if(cheek){
                         for(int p=0;p<poly.sidesIndex.size();p++){
@@ -666,6 +673,10 @@ class TopologyMapping{
             oplist[wallSharingOpenings[sideIndex].y].end=walls[sideIndex][bestINdex+1];
         }
         poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
+        if(poly_list[pIndex].poligon_points.size()==0){
+            poly_list=remove_parent_poligon(poly_list,poly_list[pIndex].sidesIndex[0], true, true);
+            return poly_list;
+        }
         poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
         int listIndex=0;
         for(int sideIndex=0;sideIndex<poly_list[pIndex].sidesIndex.size();sideIndex++){
@@ -678,7 +689,7 @@ class TopologyMapping{
                     secondStart=startIndex[i];
                 }
             }
-            if(secondStart==-1){
+            if(secondStart==-1 || secondList->size()<2){
                 poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
                 break;
             }
@@ -746,6 +757,10 @@ class TopologyMapping{
             }
         }
         poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
+        if(poly_list[pIndex].poligon_points.size()==0){
+            poly_list=remove_parent_poligon(poly_list,poly_list[pIndex].sidesIndex[0], true, true);
+            return poly_list;
+        }
         poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
         return poly_list;
     }
@@ -769,7 +784,7 @@ class TopologyMapping{
     }
 
     double DFunction(double length){
-        double minDistToCenter=4;
+        double minDistToCenter=6;
         double maxPenalty=1000;
         if(length>minDistToCenter) return (length-minDistToCenter);
         

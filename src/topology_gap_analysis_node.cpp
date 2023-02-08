@@ -938,6 +938,7 @@ class TopologyMapping{
         for(int i=0;i<oplist.size();i++){
             if(!checkOpening(oplist[i])) oplist[i].label=14;
         }
+        fixOverlapingPoints();
         for(int i=0;i<oplist.size();i++){
             for(int j=0;j<oplist.size();j++){
                 if(j==i) continue;
@@ -955,6 +956,11 @@ class TopologyMapping{
             if(oplist[i].label<10) cleanOpenings(i);
         }
 
+        
+        
+    }
+
+    void fixOverlapingPoints(){
         // move all points so they dont overlap
         for(int index=0; index<oplist.size();index++){
             for(int sids=0;sids<2;sids++){
@@ -1037,7 +1043,6 @@ class TopologyMapping{
 
             }
         }
-        
     }
 
 

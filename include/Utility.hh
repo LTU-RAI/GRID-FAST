@@ -171,7 +171,7 @@ int checkForWallRay(point_int p1, point_int p2, int** map){
     point normdVop={(p2.x-p1.x)/(opLenght*l),(p2.y-p1.y)/(opLenght*l)};
     for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
         point_int pp={p1.x+(int)(std::round(normdVop.x*wallScan)), p1.y+(int)(std::round(normdVop.y*wallScan))};
-        if(getMap(pp.x,pp.y,map)==100){
+        if(getMap(pp.x,pp.y,map)!=0){
             wallcount+=1;
         }
     }
