@@ -2,7 +2,8 @@
 #include "MapHandler.hh"
 #include "MapTransform.hh"
 #include "GapHandler.hh"
-#include "MapFilter.hh"                          
+#include "MapFilter.hh"                  
+#include "OpeningHandler.hh"        
 
 class TopologyMapping{
     private:
@@ -32,10 +33,11 @@ class TopologyMapping{
         vector<vector<vector<scanGroup>>> nonTravGaps;
         vector<mapTransformMap> mapTransformList;
 
-        MapHandler map, FilteredMap;
+        MapHandler map, mapRaw;
         MapTransform transform;
         GapHandler gaps;
         MapFilter filter;
+        OpeningHandler openingList;
         
 
 
@@ -115,17 +117,20 @@ class TopologyMapping{
         ros::Rate rate(100); // Hz
         
         while (ros::ok()){
-            /*ROS_INFO("g1");
+            ROS_INFO("g0");
+            gaps.clear();
+            openingList.clear();
+            map.updateMap(&mapRaw);
+            ROS_INFO("g1");
             transform.updateTransform(&map);
             ROS_INFO("g2");
             gaps.analysis(&map,&transform);
             ROS_INFO("g3");
-            FilteredMap.updateMap(&map);
+            openingList.updateDetections(&map,&transform,&gaps);
             ROS_INFO("g4");
-            filter.filterMap(&FilteredMap,&transform,&gaps);
-            ROS_INFO("g5");*/
-
-            oplist.clear();
+            openingList.update(&map);
+            ROS_INFO("g5");
+            /*oplist.clear();
             topologyScan();
             //for a cleaner output, fitToCorridor is used once more
             for(int j=0; j<oplist.size(); j++){
@@ -165,7 +170,7 @@ class TopologyMapping{
                     
                 }
                 
-            }
+            }*/
             pubMap();
             ros::spinOnce();
             rate.sleep();
@@ -313,10 +318,8 @@ class TopologyMapping{
         for(int index=0;index<mapMsg.data.size();index++){
             data[index]=mapMsg.data[index];
         }
-        /*ROS_INFO("r1");
-        map.updateMap(data,mapMsg.info.width,mapMsg.info.height,
+        mapRaw.updateMap(data,mapMsg.info.width,mapMsg.info.height,
                       mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y);
-        ROS_INFO("r2");*/
         int width=mapMsg.info.width;
         int height=mapMsg.info.height;
         resolution=mapMsg.info.resolution;
@@ -719,6 +722,12 @@ class TopologyMapping{
         for(int row=0; row<nonTravGaps[angleIndex].size(); row++){
             for(int index=0;index<nonTravGaps[angleIndex][row].size();index++){
                 scanGroup sg=nonTravGaps[angleIndex][row][index];
+                if(getMapTransform(Map,sg.start-1,row,angleIndex)==-1 && getMapTransform(Map,sg.end+1,row,angleIndex)==-1){
+                    for(int m=sg.start;m<=sg.end; m++){
+                    setMapTransform(topMap,m,row,angleIndex,-1);
+                }
+                }
+
                 if(//getMapTransform(Map,sg.start-1,row,angleIndex)==0 && getMapTransform(Map,sg.end+1,row,angleIndex)==0&&
                      getMapTransform(Map,sg.start-1,row,angleIndex)+getMapTransform(Map,sg.end+1,row,angleIndex)<99)
                         continue;
@@ -1225,29 +1234,53 @@ class TopologyMapping{
     //Function to publish all topics. 
     void pubMap(){
         topology_mapping::opening_list OpeningListMsg;
-        OpeningListMsg.list.resize(oplist.size());
+        /*OpeningListMsg.list.resize(oplist.size());
         for(int i=0; i<oplist.size(); i++){
             OpeningListMsg.list[i].start.x=oplist[i].start.x;
             OpeningListMsg.list[i].start.y=oplist[i].start.y;
             OpeningListMsg.list[i].end.x=oplist[i].end.x;
             OpeningListMsg.list[i].end.y=oplist[i].end.y;
             OpeningListMsg.list[i].label=oplist[i].label;
+        }*/
+        OpeningListMsg.list.resize(openingList.size());//+openingList.gapDetectionsSize());
+        for(int i=0; i<openingList.size(); i++){
+            opening* op=openingList.get(i);
+            OpeningListMsg.list[i].start.x=op->start.x;
+            OpeningListMsg.list[i].start.y=op->start.y;
+            OpeningListMsg.list[i].end.x=op->end.x;
+            OpeningListMsg.list[i].end.y=op->end.y;
+            OpeningListMsg.list[i].label=op->label;
         }
+        /*for(int i=0; i<openingList.gapDetectionsSize(); i++){
+            opening* op=openingList.getDetection(i);
+            op->label=12;
+            int s=openingList.size();
+            OpeningListMsg.list[i+s].start.x=op->start.x;
+            OpeningListMsg.list[i+s].start.y=op->start.y;
+            OpeningListMsg.list[i+s].end.x=op->end.x;
+            OpeningListMsg.list[i+s].end.y=op->end.y;
+            OpeningListMsg.list[i+s].label=op->label;
+        }*/
         pubOpeningList.publish(OpeningListMsg);
         topoMapMsg.header.stamp = ros::Time::now();
-        for(int y=0; y<mapSizeY;y++){
-            for(int x=0;x<mapSizeX;x++){  
+        for(int y=0; y<map.getMapSizeY();y++){//mapSizeY;y++){
+            for(int x=0;x<map.getMapSizeX();x++){//mapSizeX;x++){  
                 int index=x+y*mapSizeX;            
-                topoMapMsg.data[index]=topMap[x][y];
+                topoMapMsg.data[index]=map.getMap(x,y);//topMap[x][y];
             }
         }
         pubTopoMap.publish(topoMapMsg);
-        for(int oi=0;oi<oplist.size();oi++){
-            for(int i=0;i<oplist[oi].occupied_points.size();i++){
+        /*for(int oi=0;oi<oplist.size();oi++){
+            /*for(int i=0;i<oplist[oi].occupied_points.size();i++){
                 dMap[oplist[oi].occupied_points[i].x][oplist[oi].occupied_points[i].y]=100;
-            }
+            }*
             dMap[oplist[oi].start.x][oplist[oi].start.y]=0;
             dMap[oplist[oi].end.x][oplist[oi].end.y]=50;
+        }*/
+        for(int oi=0;oi<openingList.size();oi++){
+            opening* op=openingList.get(oi);
+            dMap[op->start.x][op->start.y]=0;
+            dMap[op->end.x][op->end.y]=50;
         }
         for(int y=0; y<mapSizeY;y++){
             for(int x=0;x<mapSizeX;x++){  

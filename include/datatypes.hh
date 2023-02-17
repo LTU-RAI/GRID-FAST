@@ -29,10 +29,47 @@ struct point_int{
     }
 };
 
+struct opening;
+struct wallCell{
+    point_int position={-1,-1};
+    bool emptyNeighbour=false;
+    vector<opening*> connectedtOpeningEnd;
+    vector<opening*> connectedtOpeningStart;
+};
+
+struct wall
+{
+    vector<wallCell> wall;
+
+    wallCell* getCell(int* index){
+        getIndex(index);
+        return &wall[*index];
+    }
+    uint size(){
+        return wall.size();
+    }
+    void push_back(wallCell w){
+        wall.push_back(w);
+    }
+
+    void getIndex(int* index){
+        if(*index<0) *index=*index%wall.size()+wall.size();
+        if(*index>=wall.size()) *index=*index%wall.size();
+    }
+
+    int getDistans(int index1, int index2){
+        getIndex(&index1);
+        getIndex(&index2);
+        int d1=std::abs(index1-index2);
+        int d2=wall.size()-std::max(index1,index2)+std::min(index1,index2);
+        if(d1<d2) return d1;
+        return d2;
+    }
+};
+
 struct opening{
     point_int start;
     point_int end;
-    vector<point_int> occupied_points;
     int sideToMove=3;//1:start,2:end,3:none
     int angle;
     bool start_is_outside;
@@ -41,6 +78,11 @@ struct opening{
     bool fliped=false;
     bool moved=false;
     int conected_to_path=-1;
+    int connectedWallIndexStart=-1;
+    int connectedWallIndexEnd=-1;
+    wall* connectedWallStart=NULL;
+    wall* connectedWallEnd=NULL;
+
 
     void flip(){
         point_int t=start;
@@ -54,10 +96,6 @@ struct opening{
         center.y=(end.y-start.y)/2+start.y;
         return center;
     }
-};
-
-struct gapGrupe{
-    vector<opening> openings;
 };
 
 struct poligon{

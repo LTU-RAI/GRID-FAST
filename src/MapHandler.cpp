@@ -28,7 +28,7 @@ void MapHandler::updateMap(MapHandler* newMap){
     MapHandler::mapOffsetX=newMap->getMapOffsetX();
     MapHandler::mapOffsetY=newMap->getMapOffsetY();
     MapHandler::mapSizeX=newMap->getMapSizeX();
-    MapHandler::mapSizeY=getMapSizeY();
+    MapHandler::mapSizeY=newMap->getMapSizeY();
 
     MapHandler::map=newMap->getMapComplete();
 }
@@ -89,7 +89,7 @@ ant_data MapHandler::ant_step(ant_data oldStep, bool clockwise=true){
         step.dir={1,0};
         int c=0;
         int l=1;
-        while(MapHandler::getMap(start.x+step.dir.x*l,start.y+step.dir.y*l)==0){
+        while(MapHandler::getMap(start.x+step.dir.x*l,start.y+step.dir.y*l)==MAP_UNOCCUPIED){
             newDirx=clockwise?step.dir.y:-step.dir.y;
             newDiry=clockwise?-step.dir.x:step.dir.x;
             step.dir.x=newDirx;
@@ -108,13 +108,13 @@ ant_data MapHandler::ant_step(ant_data oldStep, bool clockwise=true){
         step.dir=rotate_dir(step.dir,!clockwise);
     }
 
-    for(int d=0;d<8;d++){
+    for(int d=0;d<4;d++){
         bool check=false;
-        if(MapHandler::getMap(start.x+step.dir.x,start.y+step.dir.y)==0){
+        if(MapHandler::getMap(start.x+step.dir.x,start.y+step.dir.y)==MAP_UNOCCUPIED){
             point_int dir=step.dir;
-            if(dir.x*dir.y!=0){
+            if(dir.x*dir.y!=0 && false){
                 dir=MapHandler::rotate_dir(dir,clockwise);
-                if(MapHandler::getMap(start.x+dir.x,start.y+dir.y)==0)
+                if(MapHandler::getMap(start.x+dir.x,start.y+dir.y)==MAP_UNOCCUPIED)
                     check=true;
             }else{check=true;}
         }
@@ -124,18 +124,18 @@ ant_data MapHandler::ant_step(ant_data oldStep, bool clockwise=true){
             step.emty_cell=false;
             point_int dir={0,1};
             step.emty_cell=false;
-            for(int e=0;e<4;e++){
+            for(int e=0;e<8;e++){
                     
-                if(MapHandler::getMap(step.end.x+dir.x,step.end.y+dir.y)==-1){
+                if(MapHandler::getMap(step.end.x+dir.x,step.end.y+dir.y)==MAP_UNKNOWN){
                     step.emty_cell=true;
                     break;
                 }
-                dir=rotate_dir(dir,clockwise);
                 dir=rotate_dir(dir,clockwise);
             }
             return step;
         }
 
+        step.dir=rotate_dir(step.dir,clockwise);
         step.dir=rotate_dir(step.dir,clockwise);
     }
     return step;
@@ -154,7 +154,20 @@ point_int MapHandler::rotate_dir(point_int dir, bool cw){
     return newDir[8];
 }
 
-
+// Retrun number of cells is wall overlapt by a ray between p1 and p2
+int MapHandler::checkForWallRay(point_int p1, point_int p2){
+    int wallcount=0;
+    double l=0.5;
+    double opLenght=dist(p1,p2);
+    point normdVop={(p2.x-p1.x)/(opLenght*l),(p2.y-p1.y)/(opLenght*l)};
+    for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
+        point_int pp={p1.x+(int)(std::round(normdVop.x*wallScan)), p1.y+(int)(std::round(normdVop.y*wallScan))};
+        if(MapHandler::getMap(pp.x,pp.y)==MAP_OCCUPIED){//if(MapHandler::getMap(pp.x,pp.y)!=MAP_UNOCCUPIED){
+            wallcount+=1;
+        }
+    }
+    return wallcount;
+}
 
 
 

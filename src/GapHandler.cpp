@@ -9,6 +9,8 @@ GapHandler::~GapHandler(){
 
 void GapHandler::analysis(MapHandler* map,MapTransform* transform){
     //setup
+    GapHandler::toBeFilterdPoints.clear();
+    GapHandler::toBeFilterdValues.clear();
     GapHandler::gaps.resize(numberOfDir);
     for(int ang=0;ang<numberOfDir;ang++){
         int ySize=transform->getMaptransformSizeY(ang);
@@ -19,38 +21,90 @@ void GapHandler::analysis(MapHandler* map,MapTransform* transform){
         GapHandler::analysisAtAngle(angleIndex,map,transform);
     }
 
+    //Apply filter
+    for(int index=0;index<GapHandler::toBeFilterdPoints.size();index++){
+        map->setMap(GapHandler::toBeFilterdPoints[index].x,
+                    GapHandler::toBeFilterdPoints[index].y,
+                    GapHandler::toBeFilterdValues[index]);
+    }
+    for(int angleIndex=0;angleIndex<numberOfDir;angleIndex++){
+        for(int row=0;row<GapHandler::getSizeRows(angleIndex);row++){
+            for(int index=0;index<GapHandler::getSizeGaps(angleIndex,row);index++){
+                scanGroup* targetGap=GapHandler::get(angleIndex,row,index);
+                GapHandler::fillGapAtMap(map,transform,angleIndex,targetGap);
+            }
+        }
+    }
+
 }
 
 void GapHandler::analysisAtAngle(int angleIndex, MapHandler* map, MapTransform* transform){
-    //Loop thru all map cells
-    for(int i=0;i<transform->getMaptransformSizeY(angleIndex);i++){
-        scanGroup sg;
-        int cfilter=0;
-        int cGroupeSize=0;
-        for(int j=0;j<transform->getMaptransformSizeX(angleIndex,i);j++){
-            mapTransformCell mt=transform->getMapTransformCell(angleIndex,i,j);
-            //Finde groups
-            int mapValue=map->getMapUnsafe(mt.rpos.x,mt.rpos.y);
-            if(mapValue==0){ 
-                if(cGroupeSize==0){
-                    sg.start=mt.tpos.x;
+    for(int row=0;row<transform->getMaptransformSizeY(angleIndex);row++){
+        analysisAtRow(angleIndex,row,map,transform);
+    }
+}
+
+void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTransform* transform){
+    scanGroup sg;
+    int cfilter=0;
+    int cGroupeSize=0;
+    vector<point_int> scanPoints;
+    for(int index=0;index<transform->getMaptransformSizeX(angleIndex,row);index++){
+        mapTransformCell mt=transform->getMapTransformCell(angleIndex,row,index);
+        //Finde groups
+        int mapValue=map->getMapUnsafe(mt.rpos.x,mt.rpos.y);
+        if(mapValue==0){ 
+            if(cGroupeSize==0){
+                sg.start=mt.tpos.x;
+            }
+            cGroupeSize+=1;
+            cfilter=0;
+            scanPoints.push_back(mt.rpos);
+        //filter out unoccupied cells
+        }else if (mapValue==-1 && cfilter<cfilterSize && cGroupeSize!=0){
+            cfilter+=1;
+            scanPoints.push_back(mt.rpos);
+        
+        //if findeing ostacals biger then filter end serche
+        }else if(cGroupeSize!=0){
+            int endpoint=mt.tpos.x-1-cfilter;
+            //if found groupe is larger then minGroupSize add it as gap
+            sg.end=endpoint;
+            if(sg.end-sg.start>=minGroupSize){
+                GapHandler::add(sg,angleIndex,row);
+            }else{
+                int value;
+                if(transform->getMapAtTransform(sg.start-1,row,angleIndex,map)==MAP_OCCUPIED||
+                   transform->getMapAtTransform(sg.end+1,row,angleIndex,map)==MAP_OCCUPIED){
+                    value=MAP_OCCUPIED;
+                }else{
+                    value=MAP_UNKNOWN;
                 }
-                cGroupeSize+=1;
-                cfilter=0;
-            //filter out unoccupied cells
-            }else if (mapValue==-1 && cfilter<cfilterSize && cGroupeSize!=0){
-                cfilter+=1;
-            
-            //if findeing ostacals biger then filter end serche
-            }else if(cGroupeSize!=0){
-                int endpoint=mt.tpos.x-1-cfilter;
-                //if found groupe is larger then minGroupSize add it as gap
-                sg.end=endpoint;
-                GapHandler::add(sg,angleIndex,i,true);
-                cfilter=0;
-                cGroupeSize=0;
+                for(int i=0; i<scanPoints.size();i++){
+                    GapHandler::toBeFilterdPoints.push_back(scanPoints[i]);
+                    GapHandler::toBeFilterdValues.push_back(value);
+                }
+            }
+            scanPoints.clear();
+            cfilter=0;
+            cGroupeSize=0;
+        }
+    }
+}
+
+void GapHandler::fillGapAtMap(MapHandler* map,MapTransform* transform,int angleIndex, scanGroup* gap){
+    for(int x=gap->start;x<gap->end;x++){
+        if(gap->traversable) return; //Tempory untill bug is solved 
+        int value=MAP_UNOCCUPIED;
+        if(!gap->traversable){
+            if(transform->getMapAtTransform(gap->start-1,gap->row,angleIndex,map)==MAP_OCCUPIED||
+                transform->getMapAtTransform(gap->end+1,gap->row,angleIndex,map)==MAP_OCCUPIED){
+                value=MAP_OCCUPIED;
+            }else{
+                value=MAP_UNKNOWN;
             }
         }
+        transform->setMapAtTransform(x,gap->row,angleIndex,value,map);
     }
 }
 
@@ -70,14 +124,13 @@ scanGroup* GapHandler::get(int angleIndex, int row, int index){
     return GapHandler::gaps[angleIndex][row][index];
 }
 
-void GapHandler::add(scanGroup newGap, int angleIndex, int row, bool updateConnections=true){
+void GapHandler::add(scanGroup newGap, int angleIndex, int row){
     newGap.row=row;
     newGap.angle=angleIndex;
     scanGroup* gapToAdd= new scanGroup(newGap);
     GapHandler::gaps[angleIndex][row].push_back(gapToAdd);
     
-    if(updateConnections)
-      GapHandler::updateGap(gapToAdd);
+    GapHandler::updateGap(gapToAdd);
 }
 
 bool GapHandler::updateGap(scanGroup* gap){
@@ -89,6 +142,7 @@ bool GapHandler::updateGap(scanGroup* gap){
     GapHandler::cleanConnections(gap);
 
     gap->traversable=gap->end-gap->start>=minGroupSize;
+    if(!gap->traversable) return true;
 
     for(int sides=0;sides<2;sides++){
         int row=sides?gap->row+1:gap->row-1;
@@ -97,7 +151,7 @@ bool GapHandler::updateGap(scanGroup* gap){
         for(int index=0;index<GapHandler::gaps[gap->angle][row].size();index++){
             //Skip nontraversable gaps
             if(!GapHandler::gaps[gap->angle][row][index]->traversable) continue;
-            GapHandler::checkForOverlap( GapHandler::gaps[gap->angle][row][index], gap );
+            if(!GapHandler::checkForOverlap( GapHandler::gaps[gap->angle][row][index], gap )) break;
         }
     }
     return true;
@@ -148,15 +202,37 @@ void GapHandler::cleanConnections(scanGroup* gap){
     gap->prevGroup.clear();
 }
 
+
 //retruns false if gap1 or gap2 is changed
-void GapHandler::checkForOverlap(scanGroup* gap1, scanGroup* gap2){
+bool GapHandler::checkForOverlap(scanGroup* gap1, scanGroup* gap2){
     int startGap1=gap1->start;
     int endGap1=gap1->end;
     int startGap2=gap2->start;
     int endGap2=gap2->end;
     //If gaps do not overlap, continue 
-    if(startGap1>endGap2 || endGap1<startGap2) return;
+    if(startGap1>endGap2 || endGap1<startGap2) return true;
 
+    int overlapStart=std::max(startGap1,startGap2);
+    int overlapEnd=std::min(endGap1,endGap2);
+    int overlapSize=overlapEnd-overlapStart;
+
+    if(overlapSize<minGroupSize){
+        if(startGap1==overlapStart){
+            gap1->start=overlapEnd+1;
+            gap2->end=overlapStart-1;
+        }else{
+            gap2->start=overlapEnd+1;
+            gap1->end=overlapStart-1;
+        }
+        scanGroup sg;
+        sg.start=overlapStart;
+        sg.end=overlapEnd;
+        GapHandler::add(sg,gap1->angle,gap1->row);
+        GapHandler::add(sg,gap2->angle,gap2->row);
+        GapHandler::updateGap(gap2);
+        GapHandler::updateGap(gap1);
+        return false;
+    }
     if(gap1->row<gap2->row){
         gap1->nextGroup.push_back(gap2);
         gap2->prevGroup.push_back(gap1);
@@ -165,5 +241,5 @@ void GapHandler::checkForOverlap(scanGroup* gap1, scanGroup* gap2){
         gap1->prevGroup.push_back(gap2);
     }
 
-    return;
+    return true;
 }

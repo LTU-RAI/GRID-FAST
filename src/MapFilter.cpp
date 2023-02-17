@@ -86,8 +86,8 @@ void MapFilter::filterGapOverlapSize(GapHandler* gapH,scanGroup* gap1){
             scanGroup sg;
             sg.start=overlapStart;
             sg.end=overlapEnd;
-            gapH->add(sg,gap1->angle,gap1->row,false);
-            gapH->add(sg,gap2->angle,gap2->row,false);
+            gapH->add(sg,gap1->angle,gap1->row);
+            gapH->add(sg,gap2->angle,gap2->row);
             gapH->updateGap(gap2);
             if(!gapH->updateGap(gap1)) return;
             

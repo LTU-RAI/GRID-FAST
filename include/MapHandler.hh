@@ -20,6 +20,7 @@ public:
     int getMapUnsafe(int,int); //Do not have any protection for out of array access
     vector<int> getMapComplete();
     ant_data ant_step(ant_data,bool);
+    int checkForWallRay(point_int p1, point_int p2);  
 private:
     vector<int> map;
     int mapSizeX, mapSizeY, mapOffsetX, mapOffsetY, resulution;

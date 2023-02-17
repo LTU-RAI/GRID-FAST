@@ -13,23 +13,28 @@ MapTransform::~MapTransform(){
 void MapTransform::updateTransform(MapHandler* map){
     if(MapTransform::previusMapSizeX==map->getMapSizeX() &&
        MapTransform::previusMapSizeY==map->getMapSizeY()) return;
+    ROS_INFO("ghgd");
     
-    for(int angleIndex=0;angleIndex<numberOfDir;angleIndex++){
+    for(int angleIndex=0;angleIndex<MapTransform::mapTransformList.size();angleIndex++){
         for(int y=0;y<MapTransform::mapTransformList[angleIndex].size();y++){
-            MapTransform::mapTransformList[angleIndex].clear();
+            MapTransform::mapTransformList[angleIndex][y].clear();
         }
-        MapTransform::mapTransformList.clear();
+        MapTransform::mapTransformList[angleIndex].clear();
     }
-
+    MapTransform::mapTransformList.resize(numberOfDir);
+    ROS_INFO("f3");
     MapTransform::generateMapTransform(map->getMapSizeX(),map->getMapSizeY());
 
 }
 
 int MapTransform::getMaptransformSizeY(int angleIndex){
+    if(angleIndex>=mapTransformList.size()) return 0;
     return MapTransform::mapTransformList[angleIndex].size();
 }
 
 int MapTransform::getMaptransformSizeX(int angleIndex, int y){
+    if(angleIndex>=mapTransformList.size()) return 0;
+    if(y>=mapTransformList[angleIndex].size()) return 0;
     return MapTransform::mapTransformList[angleIndex][y].size();
 }
 

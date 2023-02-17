@@ -24,6 +24,7 @@ bool removeOpeningsFirst=true;
 
 //ant para
 int searchLenghtClean=10;
+int searchLenghtOverlap=10;
 int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
@@ -81,6 +82,8 @@ void load_config_file(const std::string &file_path) {
             removeOpeningsFirst = value=="true"||value=="True"||value=="1";
         }else if (key == "searchLenghtClean") {
             searchLenghtClean = std::stoi(value);
+        }else if (key == "searchLenghtOverlap") {
+            searchLenghtOverlap = std::stoi(value);
         }else if (key == "sercheLenthAnt") {
             sercheLenthAnt = std::stoi(value);
         }else if (key == "sercheLenthAntConect") {

@@ -157,7 +157,7 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
         }
 
         step.dir=rotate_dir(step.dir,clockwise);
-        //step.dir=rotate_dir(step.dir,clockwise);
+        step.dir=rotate_dir(step.dir,clockwise);
     }
     //ROS_INFO("no step found");
     return step;
@@ -246,7 +246,7 @@ void remove_unnecessary_openings(int** map){
     }
 }
 
-vector<point_int> generateOpeningPoints(opening *o){
+/*vector<point_int> generateOpeningPoints(opening *o){
     vector<point_int> p;
     if(o->occupied_points.size()!=0 && 
     (o->start==o->occupied_points[0] && 
@@ -283,7 +283,7 @@ vector<point_int> generateOpeningPoints(opening *o){
     o->occupied_points=p;
         
     return p;
-}
+}*/
 
 //suport function for intersect_line
 bool ccw(point A,point B,point C){
@@ -336,7 +336,7 @@ void print(string s){
 }
 
 //Move an opening to the bigest opening of two walls
-void moveOpeningIntoCoridor(opening *o, int **map){
+/*void moveOpeningIntoCoridor(opening *o, int **map){
     int bigestCoridor=0;
     int sIndex=-1;
     vector<point_int> p=generateOpeningPoints(o);
@@ -351,7 +351,7 @@ void moveOpeningIntoCoridor(opening *o, int **map){
             sIndex=-1;
         }
     }
-}
+}*/
 
 //checks and get index to first found opening at a point, type: 1 check for start, 2 check for end, 3 check for both. return -1 of no opening is found.
 vector<point_int*> check_and_get_all_opening_pointers(point_int position, int type, bool only_standard_opening=false, int exclude=-1){
@@ -632,7 +632,7 @@ vector<point_int> fillPoly(vector<point_int> PL){
     for(int x=0;x<newMap.size();x++){
         for(int y=0;y<newMap[x].size();y++){
             if(newMap[x][y]){
-                point_int p={x+minP.x,y+minP.y};
+                point_int p={x+minP.x,y+minP.y+1};
                 filledPoints.push_back(p);
             }
         }

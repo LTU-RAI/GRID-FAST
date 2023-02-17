@@ -103,17 +103,19 @@ class TopologyMapping{
             if(rMap && rOpening){
                 robotPath.clear();
                 if(oplist.size()>0){
-                    vector<poligon> poly_list=creatPoligonList();
+                    vector<poligon> poly_list;//=creatPoligonList();
                     for(int b=0; b<oplist.size(); b++){
                         if(oplist[b].parent_poligon<0 && oplist[b].label<10){
                             oplist[b].label=24;
                         }
                     }
                     poly_list=optimize_intersection_openings(poly_list);
-                    poly_list=optimize_intersection_openings(poly_list);
+                    //poly_list=optimize_intersection_openings(poly_list);
                     if(poly_list.size()>0){
-                        poly_list=creatPathPoligons(poly_list);
-                        poly_list=generat_robot_path(poly_list);
+                        ROS_INFO("gg");
+                        //poly_list=creatPathPoligons(poly_list);
+                        ROS_INFO("gg2");
+                        //poly_list=generat_robot_path(poly_list);
                     }
                     //remove unused openings
                     for(int b=0; b<oplist.size(); b++){
@@ -969,7 +971,9 @@ class TopologyMapping{
                 bool check=false;
                 bool complet=false;
                 int opIndex, pathType=0;
-                vector<int> firstOpIndex;
+                //vector<int> firstOpIndex;
+                int firstOpIndex;
+                int targetIndex=i;
                 opening currentOpening=oplist[i];
                 int countExtraPaths=0;
                 poly.poligon_points=fillPoints(currentOpening.start,currentOpening.end,0.7,true);
@@ -1001,8 +1005,8 @@ class TopologyMapping{
                             check=true;
                             break;
                         }*/
-
-                        vector<int> iList=check_and_get_all_opening(step_info.end,cw?1:2);
+                        opIndex=check_and_get_opening(step_info.end,cw?1:2,false,targetIndex);
+                        /*vector<int> iList=check_and_get_all_opening(step_info.end,cw?1:2);
                         if(iList.size()>1 && s==0){
                             bool check=true;
                             for(int index=0;index<iList.size();index++){
@@ -1018,7 +1022,7 @@ class TopologyMapping{
                             }
                         }else if(iList.size()>0){
                             opIndex=iList[0];
-                        }else opIndex=-1;
+                        }else opIndex=-1;*/
 
                         if(opIndex!=-1&& s==0){
                             if(!(oplist[opIndex].start==currentOpening.end&&
@@ -1056,7 +1060,8 @@ class TopologyMapping{
                                 oplist[opIndex].conected_to_path=-2;
                                 poly.add_point_d(step_info.end,cw);
                                 if(cw){
-                                    firstOpIndex=iList;
+                                    //firstOpIndex=iList;
+                                    firstOpIndex=opIndex;
                                     if(opIndex==i){//opening found it self, no need to search other side 
                                         check=true;
                                         complet=true;
@@ -1078,13 +1083,14 @@ class TopologyMapping{
                                         for(int n=0; n<p.size();n++) poly.add_point(p[n],cw);
                                     }
                                     bool test=false;
-                                    for(int m=0; m<firstOpIndex.size();m++){
+                                    /*for(int m=0; m<firstOpIndex.size();m++){
                                         if(firstOpIndex[m]==opIndex) test=true;
-                                    }
-                                    if(!test){
+                                    }*/
+                                    if(firstOpIndex!=opIndex){//!test){
                                         //ROS_INFO("Warning, path with more than two connection!");
                                         pathType=4;
                                         if(opIndex!=-1){//loop is rerun to connect additional openings
+                                            targetIndex=opIndex;
                                             currentOpening=oplist[opIndex];
                                             if(countExtraPaths>4){
                                                 complet=true;
@@ -1163,6 +1169,7 @@ class TopologyMapping{
                             newPolly.sidesIndex.push_back(oplist.size());
                             oplist.push_back(newOp);
                         }
+                        ROS_INFO("%li",oplist.size());
                         newPolly.label=label;
                         poly_list.push_back(newPolly);
                         poly_list=optimize_intersection(poly_list,poly_list.size()-1);
