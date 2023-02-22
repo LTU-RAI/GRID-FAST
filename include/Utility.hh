@@ -35,19 +35,19 @@ double dist(point_int p1, point_int p2){
 
 vector<opening> oplist;
 
-geometry_msgs::PolygonStamped get_polygon(poligon poly, float resolution, double z=0.1){
+geometry_msgs::PolygonStamped get_polygon(polygon poly, float resolution, double z=0.1){
     int MapOrigenX=-mapOffsetX/resolution;
     int MapOrigenY=-mapOffsetY/resolution;
     vector<point_int> points;
-    for(int i=0; i<poly.poligon_points_desplay.size(); i++){
+    for(int i=0; i<poly.polygon_points_desplay.size(); i++){
         bool test=true;
         for(int n=0; n<points.size(); n++){
-            if(poly.poligon_points_desplay[i]==points[n]){
+            if(poly.polygon_points_desplay[i]==points[n]){
                 test=false;
             }
         }
         if(test){
-            points.push_back(poly.poligon_points_desplay[i]);
+            points.push_back(poly.polygon_points_desplay[i]);
         }
     }
     geometry_msgs::PolygonStamped newPoly;
@@ -638,6 +638,26 @@ vector<point_int> fillPoly(vector<point_int> PL){
         }
     }
     return filledPoints;
+}
+
+vector<point_int> fillPoints(point_int start, point_int end,double spacing,bool lastAndFirst=false){
+    vector<point_int> out;
+    point norm;
+    double d=dist(start,end);
+    norm.x=(end.x-start.x)/d*spacing;
+    norm.y=(end.y-start.y)/d*spacing;
+
+    for(int s=lastAndFirst?0:1;s<(int)(d/spacing);s++){
+        point_int p;
+        p.x=start.x+std::round(norm.x*s);
+        p.y=start.y+std::round(norm.y*s);
+        out.push_back(p);
+    }
+    if(lastAndFirst){
+        out.push_back(end);
+    }
+
+    return out;
 }
 
 /*//Returns int rep calss, 0=North, 1=West, 2=South, 3=East

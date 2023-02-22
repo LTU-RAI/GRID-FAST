@@ -103,23 +103,23 @@ class TopologyMapping{
             if(rMap && rOpening){
                 robotPath.clear();
                 if(oplist.size()>0){
-                    vector<poligon> poly_list;//=creatPoligonList();
+                    vector<polygon> poly_list;//=creatpolygonList();
                     for(int b=0; b<oplist.size(); b++){
-                        if(oplist[b].parent_poligon<0 && oplist[b].label<10){
+                        if(oplist[b].parent_polygon<0 && oplist[b].label<10){
                             oplist[b].label=24;
                         }
                     }
-                    poly_list=optimize_intersection_openings(poly_list);
+                    //poly_list=optimize_intersection_openings(poly_list);
                     //poly_list=optimize_intersection_openings(poly_list);
                     if(poly_list.size()>0){
                         ROS_INFO("gg");
-                        //poly_list=creatPathPoligons(poly_list);
+                        //poly_list=creatPathpolygons(poly_list);
                         ROS_INFO("gg2");
                         //poly_list=generat_robot_path(poly_list);
                     }
                     //remove unused openings
                     for(int b=0; b<oplist.size(); b++){
-                        if(oplist[b].parent_poligon<0 && oplist[b].label<10){
+                        if(oplist[b].parent_polygon<0 && oplist[b].label<10){
                             oplist[b].label=24;
                         }
                     }
@@ -129,7 +129,7 @@ class TopologyMapping{
                             b-=1;
                         }
                     }
-                    pubMap(poly_list);
+                    //pubMap(poly_list);
                 }
                 
                 rMap=false;
@@ -180,7 +180,7 @@ class TopologyMapping{
         }
         rMap=true;
     }
-    vector<point_int> fillPoints(point_int start, point_int end,double spacing,bool lastAndFirst=false){
+    /*vector<point_int> fillPoints(point_int start, point_int end,double spacing,bool lastAndFirst=false){
         vector<point_int> out;
         point norm;
         double d=dist(start,end);
@@ -200,7 +200,7 @@ class TopologyMapping{
         return out;
     }
 
-    poligon creat_poligon_area(poligon poly, int id){
+    polygon creat_polygon_area(polygon poly, int id){
         vector<point_int> points;
         vector<point_int> points_desplay;
         int oIndex=poly.sidesIndex[0];
@@ -208,7 +208,7 @@ class TopologyMapping{
             ant_data step_info;
                     
             step_info.end=oplist[oIndex].start; 
-            int rezCounter=poligonRez;
+            int rezCounter=polygonRez;
             step_info.dir={0,0};
             vector<point_int> pointHolder;
             vector<point_int> pointHolderLowRez;
@@ -216,7 +216,7 @@ class TopologyMapping{
             for(int s=0; s<=sercheLenthAntConect; s++){
                 //don't save all point to save on resources
                 pointHolder.push_back(step_info.end);
-                if(rezCounter>=poligonRez){
+                if(rezCounter>=polygonRez){
                     rezCounter=0;
                     pointHolderLowRez.push_back(step_info.end);
                 }else{
@@ -262,7 +262,7 @@ class TopologyMapping{
                         newOp.end=firtsOfFronter;
                         newOp.start=step_info.end;
                         newOp.label=4;
-                        newOp.parent_poligon=id;
+                        newOp.parent_polygon=id;
                         poly.sidesIndex.push_back(oplist.size());
                         oplist.push_back(newOp);
                         vector<point_int> np=fillPoints(oplist.back().end,oplist.back().start,0.7,true);
@@ -285,19 +285,19 @@ class TopologyMapping{
                 }
                 if(s==sercheLenthAntConect){
                     //ROS_INFO("error id %i",id);
-                    poly.poligon_points.clear();
-                    poly.poligon_points_desplay.clear();
+                    poly.polygon_points.clear();
+                    poly.polygon_points_desplay.clear();
                     return poly;
                 }
             }                        
         }
-        poly.poligon_points=points;
-        poly.poligon_points_desplay=points_desplay;
+        poly.polygon_points=points;
+        poly.polygon_points_desplay=points_desplay;
         return poly;
     }
 
 
-    point_int get_poligon_center(vector<point_int> sList){
+    point_int get_polygon_center(vector<point_int> sList){
         point_int center={0,0};
         for(int i=0; i<sList.size();i++){
             center.x+=sList[i].x;
@@ -320,13 +320,13 @@ class TopologyMapping{
         return !t;
     }
 
-    //Remove connection of all openings connected to the same poligon as opening with index Index, poligon is then tagged for removal.
-    vector<poligon> remove_parent_poligon(vector<poligon> poly_list,int opIndex, bool remove_openign=false, bool remove_all_openings=false){
+    //Remove connection of all openings connected to the same polygon as opening with index Index, polygon is then tagged for removal.
+    vector<polygon> remove_parent_polygon(vector<polygon> poly_list,int opIndex, bool remove_openign=false, bool remove_all_openings=false){
         if(opIndex>=0){
-            if(oplist[opIndex].parent_poligon>=0){
-                int pIndex=oplist[opIndex].parent_poligon;
+            if(oplist[opIndex].parent_polygon>=0){
+                int pIndex=oplist[opIndex].parent_polygon;
                 for(int i=0; i<poly_list[pIndex].sidesIndex.size();i++){
-                    oplist[poly_list[pIndex].sidesIndex[i]].parent_poligon=-1;
+                    oplist[poly_list[pIndex].sidesIndex[i]].parent_polygon=-1;
                     if(remove_all_openings) oplist[poly_list[pIndex].sidesIndex[i]].label=26;
                     poly_list[pIndex].inactiv=true;
                 }
@@ -339,19 +339,19 @@ class TopologyMapping{
     }
 
     //Connect all openings to create a list of polygons representing the intersections.
-    vector<poligon> creatPoligonList(){
-        vector<poligon> poly_list;
+    vector<polygon> creatpolygonList(){
+        vector<polygon> poly_list;
         for(int i=0; i<oplist.size(); i++){
-            if(oplist[i].parent_poligon==-1 && oplist[i].label==1){
+            if(oplist[i].parent_polygon==-1 && oplist[i].label==1){
                 //set init. val. for all var:s needed.
-                //poly is a temp variable holding the information that will be appended to poligon_list 
+                //poly is a temp variable holding the information that will be appended to polygon_list 
                 bool cw=true;
-                poligon poly;
+                polygon poly;
                 poly.inactiv=false;
                 poly.path=false;
                 poly.label=1;
                 poly.sidesIndex.push_back(i);
-                oplist[i].parent_poligon=-2;//A temporary value used to indicate that the polygon is connected.
+                oplist[i].parent_polygon=-2;//A temporary value used to indicate that the polygon is connected.
                 ant_data step_info;      
                 bool cheek=false, complet=false, moved=false;
                 int firstIndex=i;
@@ -445,7 +445,7 @@ class TopologyMapping{
                                         newOp.end=oplist[opIndex].start;
                                         //fitt new opening to coridor 
                                         newOp.label=2;
-                                        newOp.parent_poligon=-2;
+                                        newOp.parent_polygon=-2;
                                         poly.add_sideIndex(oplist.size(),cw);
                                         int newIndex=oplist.size();
                                         oplist.push_back(newOp);
@@ -454,10 +454,10 @@ class TopologyMapping{
                                             complet=true;
 
                                         }else{//bad new opening, remove conflicting opening instead
-                                            oplist[newIndex].parent_poligon=-1;
+                                            oplist[newIndex].parent_polygon=-1;
                                             oplist[newIndex].label=11;
                                             if(opIndex>=0){
-                                                poly_list=remove_parent_poligon(poly_list,opIndex,true);
+                                                poly_list=remove_parent_polygon(poly_list,opIndex,true);
                                                 i-=1;
                                             }        
                                         }
@@ -474,11 +474,11 @@ class TopologyMapping{
                         //Good conection
                         if(opIndex!=-1){
                                 totalSlenght+=s;
-                                //If an opening filip has caused a new connection possible with a polygon that have created a new opening remov that poligon
-                                if(oplist[opIndex].parent_poligon!=-1 && oplist[opIndex].parent_poligon!=-2){
-                                    poly_list=remove_parent_poligon(poly_list,opIndex);
+                                //If an opening filip has caused a new connection possible with a polygon that have created a new opening remov that polygon
+                                if(oplist[opIndex].parent_polygon!=-1 && oplist[opIndex].parent_polygon!=-2){
+                                    poly_list=remove_parent_polygon(poly_list,opIndex);
                                 }
-                                if(oplist[opIndex].parent_poligon==-1){
+                                if(oplist[opIndex].parent_polygon==-1){
                                     //ROS_INFO("Found connection");
                                     if(empty_cell_count_max>maxAntGap && false){
                                         opening newOp;
@@ -491,21 +491,21 @@ class TopologyMapping{
                                             newOp.end=oplist[opIndex].start;
                                         }
                                         oplist.push_back(newOp);
-                                        oplist.back().parent_poligon=-2;
+                                        oplist.back().parent_polygon=-2;
                                         poly.add_sideIndex(oplist.size()-1,cw);
                                     }
-                                    oplist[opIndex].parent_poligon=-2;
+                                    oplist[opIndex].parent_polygon=-2;
                                     poly.add_sideIndex(opIndex,cw);
                                     moved=moved?moved:oplist[opIndex].moved;
                                     targetIndex=opIndex;
                                     break;
                                 }else if(poly.sidesIndex.size()==2){//Too small connection, flipping the openings
                                     //ROS_INFO("Small connection");
-                                    oplist[targetIndex].parent_poligon=-1;
+                                    oplist[targetIndex].parent_polygon=-1;
                                     if(oplist[i].fliped){//remove opening if flipped two times
                                         oplist[i].label=28;
                                     }else{
-                                        oplist[i].parent_poligon=-1;
+                                        oplist[i].parent_polygon=-1;
                                         oplist[targetIndex].flip();
                                         oplist[i].flip();
                                         oplist[i].fliped=true;
@@ -545,7 +545,7 @@ class TopologyMapping{
                         int label=0;
                         /*for(int p=0;p< poly.sidesIndex.size();p++){
                             ROS_INFO("%i, start: %i, %i, end: %i, %i",i,oplist[poly.sidesIndex[p]].start.x, oplist[poly.sidesIndex[p]].start.y,oplist[poly.sidesIndex[p]].end.x, oplist[poly.sidesIndex[p]].end.y);
-                        }*/
+                        }/
                         if(poly.sidesIndex.size()==1){
                             label=41;
                         }else if(poly.sidesIndex.size()==2){
@@ -553,21 +553,21 @@ class TopologyMapping{
                         }else{
                             label=30;
                         }
-                        //set openings parent_poligon to the correct index 
+                        //set openings parent_polygon to the correct index 
                         for(int p=0;p<poly.sidesIndex.size();p++){
-                            oplist[poly.sidesIndex[p]].parent_poligon=poly_list.size();
+                            oplist[poly.sidesIndex[p]].parent_polygon=poly_list.size();
                         }
                         poly.label=label;
                         poly_list.push_back(poly);
-                        poly_list.back()=creat_poligon_area(poly_list.back(),poly_list.size()-1);
-                        if(poly_list.back().poligon_points.size()==0){
-                            poly_list=remove_parent_poligon(poly_list,poly_list.back().sidesIndex[0], true, true);
+                        poly_list.back()=creat_polygon_area(poly_list.back(),poly_list.size()-1);
+                        if(poly_list.back().polygon_points.size()==0){
+                            poly_list=remove_parent_polygon(poly_list,poly_list.back().sidesIndex[0], true, true);
                         }else
-                        poly_list.back().center=get_poligon_center(poly_list.back().poligon_points);
+                        poly_list.back().center=get_polygon_center(poly_list.back().polygon_points);
 
                     }else if(cheek){
                         for(int p=0;p<poly.sidesIndex.size();p++){
-                            oplist[poly.sidesIndex[p]].parent_poligon=-1;
+                            oplist[poly.sidesIndex[p]].parent_polygon=-1;
                         }
                     }
                 }
@@ -578,7 +578,7 @@ class TopologyMapping{
             if(poly_list[b].inactiv){
                 for(int v=0;v<oplist.size();v++){
                     if(oplist[v].label>10) continue;
-                    if(oplist[v].parent_poligon>b) oplist[v].parent_poligon--;
+                    if(oplist[v].parent_polygon>b) oplist[v].parent_polygon--;
                 }
                 poly_list.erase(poly_list.begin()+b);
                 b-=1;
@@ -587,7 +587,7 @@ class TopologyMapping{
         return poly_list;
     }
 
-    vector<poligon> optimize_intersection(vector<poligon> poly_list, int pIndex){
+    vector<polygon> optimize_intersection(vector<polygon> poly_list, int pIndex){
         int sLenght=6000;
         if(poly_list[pIndex].inactiv) return poly_list;
         //if(pIndex!=9) continue;
@@ -647,7 +647,7 @@ class TopologyMapping{
                 }
             }
             if(wallEnd==-1){
-                poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                poly_list=remove_parent_polygon(poly_list,opIndex, true, true);
                 del=true;
                 break;
             }
@@ -674,12 +674,12 @@ class TopologyMapping{
             oplist[wallSharingOpenings[sideIndex].x].start=walls[sideIndex][bestINdex];
             oplist[wallSharingOpenings[sideIndex].y].end=walls[sideIndex][bestINdex+1];
         }
-        poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
-        if(poly_list[pIndex].poligon_points.size()==0){
-            poly_list=remove_parent_poligon(poly_list,poly_list[pIndex].sidesIndex[0], true, true);
+        poly_list[pIndex]=creat_polygon_area(poly_list[pIndex],pIndex);
+        if(poly_list[pIndex].polygon_points.size()==0){
+            poly_list=remove_parent_polygon(poly_list,poly_list[pIndex].sidesIndex[0], true, true);
             return poly_list;
         }
-        poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
+        poly_list[pIndex].center=get_polygon_center(poly_list[pIndex].polygon_points);
         int listIndex=0;
         for(int sideIndex=0;sideIndex<poly_list[pIndex].sidesIndex.size();sideIndex++){
             int opIndex=poly_list[pIndex].sidesIndex[sideIndex];
@@ -692,7 +692,7 @@ class TopologyMapping{
                 }
             }
             if(secondStart==-1 || secondList->size()<2){
-                poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                poly_list=remove_parent_polygon(poly_list,opIndex, true, true);
                 break;
             }
             vector<point_int> startS,endS;
@@ -748,26 +748,26 @@ class TopologyMapping{
             oplist[opIndex]=best;
             if(!changed){
                 if(poly_list[pIndex].sidesIndex.size()<=3){
-                    poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                    poly_list=remove_parent_polygon(poly_list,opIndex, true, true);
                     break;
                 }else{
-                    oplist[opIndex].parent_poligon=-1;
+                    oplist[opIndex].parent_polygon=-1;
                     oplist[opIndex].label=26;
                     poly_list[pIndex].sidesIndex.erase(poly_list[pIndex].sidesIndex.begin()+sideIndex);
                     sideIndex-=1;
                 }
             }
         }
-        poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
-        if(poly_list[pIndex].poligon_points.size()==0){
-            poly_list=remove_parent_poligon(poly_list,poly_list[pIndex].sidesIndex[0], true, true);
+        poly_list[pIndex]=creat_polygon_area(poly_list[pIndex],pIndex);
+        if(poly_list[pIndex].polygon_points.size()==0){
+            poly_list=remove_parent_polygon(poly_list,poly_list[pIndex].sidesIndex[0], true, true);
             return poly_list;
         }
-        poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
+        poly_list[pIndex].center=get_polygon_center(poly_list[pIndex].polygon_points);
         return poly_list;
     }
 
-    vector<poligon> optimize_intersection_openings(vector<poligon> poly_list){
+    vector<polygon> optimize_intersection_openings(vector<polygon> poly_list){
         for(int pIndex=0;pIndex<poly_list.size();pIndex++){
             poly_list=optimize_intersection(poly_list,pIndex);
         }
@@ -776,7 +776,7 @@ class TopologyMapping{
             if(poly_list[b].inactiv){
                 for(int v=0;v<oplist.size();v++){
                     if(oplist[v].label>10) continue;
-                    if(oplist[v].parent_poligon>b) oplist[v].parent_poligon--;
+                    if(oplist[v].parent_polygon>b) oplist[v].parent_polygon--;
                 }
                 poly_list.erase(poly_list.begin()+b);
                 b-=1;
@@ -793,7 +793,7 @@ class TopologyMapping{
         return maxPenalty-(maxPenalty/minDistToCenter*length);
     }
 
-    vector<poligon> optimize_intersection_openings2(vector<poligon> poly_list){
+    vector<polygon> optimize_intersection_openings2(vector<polygon> poly_list){
         int sLenght=6000;
         for(int pIndex=0;pIndex<poly_list.size();pIndex++){
             if(poly_list[pIndex].inactiv) continue;
@@ -827,7 +827,7 @@ class TopologyMapping{
                             if(dir && t) test=false;
                             if(!dir && !t) test=false;
                         }
-                        if(!test)break;*/
+                        if(!test)break;/
 
                         vector<int> indexListTp2=check_and_get_all_opening(p2,3,false,opIndex);
                         bool test=false;
@@ -907,24 +907,24 @@ class TopologyMapping{
                 oplist[opIndex]=best;
                 if(!changed){
                     if(poly_list[pIndex].sidesIndex.size()<=3){
-                        poly_list=remove_parent_poligon(poly_list,opIndex, true, true);
+                        poly_list=remove_parent_polygon(poly_list,opIndex, true, true);
                     }else{
-                        oplist[opIndex].parent_poligon=-1;
+                        oplist[opIndex].parent_polygon=-1;
                         oplist[opIndex].label=26;
                         poly_list[pIndex].sidesIndex.erase(poly_list[pIndex].sidesIndex.begin()+sideIndex);
                         sideIndex=-1;
                     }
                 }
             }
-            poly_list[pIndex]=creat_poligon_area(poly_list[pIndex],pIndex);
-            poly_list[pIndex].center=get_poligon_center(poly_list[pIndex].poligon_points);
+            poly_list[pIndex]=creat_polygon_area(poly_list[pIndex],pIndex);
+            poly_list[pIndex].center=get_polygon_center(poly_list[pIndex].polygon_points);
         }
         //remove polygons tagged for removal (polygons with inactive==true)
         for(int b=0; b<poly_list.size(); b++){
             if(poly_list[b].inactiv){
                 for(int v=0;v<oplist.size();v++){
                     if(oplist[v].label>10) continue;
-                    if(oplist[v].parent_poligon>b) oplist[v].parent_poligon--;
+                    if(oplist[v].parent_polygon>b) oplist[v].parent_polygon--;
                 }
                 poly_list.erase(poly_list.begin()+b);
                 b-=1;
@@ -933,9 +933,9 @@ class TopologyMapping{
         return poly_list;
     }
 
-    //Connects poligon connectingIndex to poligon that has opIndex as a child, conneting the connected poligon back to connectingIndex at posision connectOppeningPos
-    vector<poligon>  connectPoligons(vector<poligon> poly_list,int opIndex,int connectingIndex, int connectOppeningPos){
-        int opParentP=oplist[opIndex].parent_poligon;
+    //Connects polygon connectingIndex to polygon that has opIndex as a child, conneting the connected polygon back to connectingIndex at posision connectOppeningPos
+    vector<polygon>  connectpolygons(vector<polygon> poly_list,int opIndex,int connectingIndex, int connectOppeningPos){
+        int opParentP=oplist[opIndex].parent_polygon;
         int opParentIndex=-1;
         for(int i=0; i<poly_list[opParentP].sidesIndex.size();i++){
             if(poly_list[opParentP].sidesIndex[i]==opIndex){
@@ -943,25 +943,25 @@ class TopologyMapping{
                 break;
             }                
         }
-        if(poly_list[opParentP].connectedPoligons.size()<=opParentIndex){
-            poly_list[opParentP].connectedPoligons.resize(opParentIndex+1);
+        if(poly_list[opParentP].connectedpolygons.size()<=opParentIndex){
+            poly_list[opParentP].connectedpolygons.resize(opParentIndex+1);
         }
-        poly_list[opParentP].connectedPoligons[opParentIndex]=connectingIndex;
+        poly_list[opParentP].connectedpolygons[opParentIndex]=connectingIndex;
 
-        if(poly_list[connectingIndex].connectedPoligons.size()<=connectOppeningPos){
-            poly_list[connectingIndex].connectedPoligons.resize(connectOppeningPos+1);
+        if(poly_list[connectingIndex].connectedpolygons.size()<=connectOppeningPos){
+            poly_list[connectingIndex].connectedpolygons.resize(connectOppeningPos+1);
         }
-        poly_list[connectingIndex].connectedPoligons[connectOppeningPos]=opParentP;
+        poly_list[connectingIndex].connectedpolygons[connectOppeningPos]=opParentP;
         return poly_list;
     }
 
     //Create path polygon between intersection
-    vector<poligon> creatPathPoligons(vector<poligon> poly_list){
+    vector<polygon> creatPathpolygons(vector<polygon> poly_list){
         for(int i=0; i<oplist.size(); i++){
-            if(oplist[i].conected_to_path==-1 && oplist[i].parent_poligon>=0 && !poly_list[oplist[i].parent_poligon].inactiv){
+            if(oplist[i].conected_to_path==-1 && oplist[i].parent_polygon>=0 && !poly_list[oplist[i].parent_polygon].inactiv){
                 //set init. val. for all var:s needed.
-                //poly is a temp variable holding the information that will be appended to poligon_list 
-                poligon poly;
+                //poly is a temp variable holding the information that will be appended to polygon_list 
+                polygon poly;
                 poly.inactiv=false;
                 poly.path=true;
                 poly.label=1;
@@ -976,7 +976,7 @@ class TopologyMapping{
                 int targetIndex=i;
                 opening currentOpening=oplist[i];
                 int countExtraPaths=0;
-                poly.poligon_points=fillPoints(currentOpening.start,currentOpening.end,0.7,true);
+                poly.polygon_points=fillPoints(currentOpening.start,currentOpening.end,0.7,true);
 
                 for(int sids=0; sids<2 && !check; sids++){
                     int max_emty_cells=0;
@@ -994,7 +994,7 @@ class TopologyMapping{
                     for(int s=0; s<=sercheLenthAntConect; s++){
                         poly.add_point(step_info.end,cw);
                         //don't save all point to save on resources
-                        if(rezCounter>=poligonRezPath){
+                        if(rezCounter>=polygonRezPath){
                             rezCounter=0;
                             poly.add_point_d(step_info.end,cw);
                         }else{
@@ -1004,7 +1004,7 @@ class TopologyMapping{
                         /*if(step_info.end==firstPos){
                             check=true;
                             break;
-                        }*/
+                        }/
                         opIndex=check_and_get_opening(step_info.end,cw?1:2,false,targetIndex);
                         /*vector<int> iList=check_and_get_all_opening(step_info.end,cw?1:2);
                         if(iList.size()>1 && s==0){
@@ -1022,7 +1022,7 @@ class TopologyMapping{
                             }
                         }else if(iList.size()>0){
                             opIndex=iList[0];
-                        }else opIndex=-1;*/
+                        }else opIndex=-1;/
 
                         if(opIndex!=-1&& s==0){
                             if(!(oplist[opIndex].start==currentOpening.end&&
@@ -1056,7 +1056,7 @@ class TopologyMapping{
                         }
                         //Found connection
                         if(opIndex!=-1 || s==sercheLenthAntConect){
-                            if(oplist[opIndex].parent_poligon>=0){
+                            if(oplist[opIndex].parent_polygon>=0){
                                 oplist[opIndex].conected_to_path=-2;
                                 poly.add_point_d(step_info.end,cw);
                                 if(cw){
@@ -1085,7 +1085,7 @@ class TopologyMapping{
                                     bool test=false;
                                     /*for(int m=0; m<firstOpIndex.size();m++){
                                         if(firstOpIndex[m]==opIndex) test=true;
-                                    }*/
+                                    }/
                                     if(firstOpIndex!=opIndex){//!test){
                                         //ROS_INFO("Warning, path with more than two connection!");
                                         pathType=4;
@@ -1151,21 +1151,21 @@ class TopologyMapping{
                     default:
                         break;
                     }
-                    /*if(oplist[i].parent_poligon==0)
+                    /*if(oplist[i].parent_polygon==0)
                     for(int p=0;p<poly.sidesIndex.size();p++){
                         oplist[poly.sidesIndex[p]].conected_to_path=poly_list.size();
-                    }*/
+                    }/
                     if(label==76){
                         for(int p=0;p<poly.sidesIndex.size();p++){
                             oplist[poly.sidesIndex[p]].conected_to_path=-1;
                         }
-                        poligon newPolly;
+                        polygon newPolly;
                         for(int j=0;j<poly.sidesIndex.size();j++){
                             opening newOp;
                             newOp.start=oplist[poly.sidesIndex[j]].end;
                             newOp.end=oplist[poly.sidesIndex[j]].start;
                             newOp.label=2;
-                            newOp.parent_poligon=poly_list.size();
+                            newOp.parent_polygon=poly_list.size();
                             newPolly.sidesIndex.push_back(oplist.size());
                             oplist.push_back(newOp);
                         }
@@ -1179,7 +1179,7 @@ class TopologyMapping{
                     poly.label=label;
                     poly_list.push_back(poly);
                     for(int m=0;m<poly.sidesIndex.size();m++){
-                        //poly_list=connectPoligons(poly_list,poly.sidesIndex[m],poly_list.size()-1,m);
+                        //poly_list=connectpolygons(poly_list,poly.sidesIndex[m],poly_list.size()-1,m);
                     }
                 }else if(check){
                     for(int p=0;p<poly.sidesIndex.size();p++){
@@ -1191,8 +1191,8 @@ class TopologyMapping{
         return poly_list;
     }
 
-    vector<point_int> generate_voronoi(poligon poly, point_int start, point_int end={-1,-1}){
-        vector<point_int> PL=poly.poligon_points;
+    vector<point_int> generate_voronoi(polygon poly, point_int start, point_int end={-1,-1}){
+        vector<point_int> PL=poly.polygon_points;
         vector<point_int> filledPoints=fillPoly(PL);
         for(int i=0;i<filledPoints.size();i++) 
             setMap(filledPoints[i].x,filledPoints[i].y,100,debugMap);
@@ -1336,7 +1336,7 @@ class TopologyMapping{
         return paths[cPathIndex];
     }
 
-    vector<poligon> generat_robot_path(vector<poligon> poly_list){
+    vector<polygon> generat_robot_path(vector<polygon> poly_list){
         for(int x=0; x<mapSizeX;x++){
             for(int y=0;y<mapSizeY;y++){
                 debugMap[x][y]=-1;
@@ -1403,10 +1403,10 @@ class TopologyMapping{
             newList.list[i].y=list[i].y;
         }
         return newList;
-    }
+    }*/
 
     //Function to publish all topics. 
-    void pubMap(vector<poligon> poly_list){
+    void pubMap(vector<polygon> poly_list){
         jsk_recognition_msgs::PolygonArray pubPolyArray_old;
         pubPolyArray_old.header.frame_id = "map";
         pubPolyArray_old.header.stamp = ros::Time::now();
@@ -1461,7 +1461,7 @@ class TopologyMapping{
             
             pubPolyArray_old.polygons[i]=p;
             pubPolyArray_old.labels[i]=op.label;
-            pubPolyArray_old.likelihood[i]=op.parent_poligon;
+            //pubPolyArray_old.likelihood[i]=op.parent_polygon;
         }
         pubTopoPoly_debug.publish(pubPolyArray_old);
         
@@ -1539,22 +1539,22 @@ class TopologyMapping{
             topoMapMsg.data[i]=-1;
         }
         for(int i=0; i<poly_list.size();i++){
-            vector<point_int> filedP;//=fillPoly(poly_list[i].poligon_points);
+            vector<point_int> filedP;//=fillPoly(poly_list[i].polygon_points);
             for(int j=0;j<filedP.size();j++){
                 int index=filedP[j].x+filedP[j].y*mapSizeX;
                 topometricMapMsg.polygonType[index]=poly_list[i].label;
                 topometricMapMsg.polygonId[index]=i;
                 topoMapMsg.data[index]=poly_list[i].label;
             }
-            topometricMapMsg.polygons[i].polygonPoints=ConvertPointListToMsg(poly_list[i].poligon_points);
+            //topometricMapMsg.polygons[i].polygonPoints=ConvertPointListToMsg(poly_list[i].polygon_points);
             int size=poly_list[i].connectedPaths.size();
             topometricMapMsg.polygons[i].connectedPaths.resize(size);
             for(int n=0;n<size;n++){
-                topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(poly_list[i].connectedPaths[n]);
+                //topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(poly_list[i].connectedPaths[n]);
             }
             topometricMapMsg.polygons[i].id=i;
             topometricMapMsg.polygons[i].type=poly_list[i].label;
-            topometricMapMsg.polygons[i].connectedPolygons=poly_list[i].connectedPoligons;
+            //topometricMapMsg.polygons[i].connectedPolygons=poly_list[i].connectedpolygons;
 
         }
         pubMapDebug.publish(topoMapMsg);

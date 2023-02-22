@@ -23,6 +23,8 @@ void GapHandler::analysis(MapHandler* map,MapTransform* transform){
 
     //Apply filter
     for(int index=0;index<GapHandler::toBeFilterdPoints.size();index++){
+        if(map->getMapUnsafe(GapHandler::toBeFilterdPoints[index].x,
+                             GapHandler::toBeFilterdPoints[index].y)==MAP_OCCUPIED) continue;
         map->setMap(GapHandler::toBeFilterdPoints[index].x,
                     GapHandler::toBeFilterdPoints[index].y,
                     GapHandler::toBeFilterdValues[index]);
@@ -31,6 +33,7 @@ void GapHandler::analysis(MapHandler* map,MapTransform* transform){
         for(int row=0;row<GapHandler::getSizeRows(angleIndex);row++){
             for(int index=0;index<GapHandler::getSizeGaps(angleIndex,row);index++){
                 scanGroup* targetGap=GapHandler::get(angleIndex,row,index);
+                if(targetGap->traversable) continue;
                 GapHandler::fillGapAtMap(map,transform,angleIndex,targetGap);
             }
         }
@@ -70,20 +73,20 @@ void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTrans
             int endpoint=mt.tpos.x-1-cfilter;
             //if found groupe is larger then minGroupSize add it as gap
             sg.end=endpoint;
+            int value=MAP_UNOCCUPIED;
             if(sg.end-sg.start>=minGroupSize){
                 GapHandler::add(sg,angleIndex,row);
             }else{
-                int value;
                 if(transform->getMapAtTransform(sg.start-1,row,angleIndex,map)==MAP_OCCUPIED||
                    transform->getMapAtTransform(sg.end+1,row,angleIndex,map)==MAP_OCCUPIED){
                     value=MAP_OCCUPIED;
                 }else{
                     value=MAP_UNKNOWN;
                 }
-                for(int i=0; i<scanPoints.size();i++){
-                    GapHandler::toBeFilterdPoints.push_back(scanPoints[i]);
-                    GapHandler::toBeFilterdValues.push_back(value);
-                }
+            }
+            for(int i=0; i<scanPoints.size()-cfilter;i++){
+                GapHandler::toBeFilterdPoints.push_back(scanPoints[i]);
+                GapHandler::toBeFilterdValues.push_back(value);
             }
             scanPoints.clear();
             cfilter=0;
@@ -93,18 +96,19 @@ void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTrans
 }
 
 void GapHandler::fillGapAtMap(MapHandler* map,MapTransform* transform,int angleIndex, scanGroup* gap){
-    for(int x=gap->start;x<gap->end;x++){
-        if(gap->traversable) return; //Tempory untill bug is solved 
-        int value=MAP_UNOCCUPIED;
-        if(!gap->traversable){
-            if(transform->getMapAtTransform(gap->start-1,gap->row,angleIndex,map)==MAP_OCCUPIED||
-                transform->getMapAtTransform(gap->end+1,gap->row,angleIndex,map)==MAP_OCCUPIED){
-                value=MAP_OCCUPIED;
-            }else{
-                value=MAP_UNKNOWN;
-            }
+    int value=MAP_UNOCCUPIED;
+    if(!gap->traversable){
+        if(transform->getMapAtTransform(gap->start-1,gap->row,angleIndex,map)==MAP_OCCUPIED||
+            transform->getMapAtTransform(gap->end+1,gap->row,angleIndex,map)==MAP_OCCUPIED){
+            value=MAP_OCCUPIED;
+        }else{
+            value=MAP_UNKNOWN;
         }
-        transform->setMapAtTransform(x,gap->row,angleIndex,value,map);
+    }
+    for(int x=gap->start;x<gap->end;x++){
+        //if(gap->traversable) return; //Tempory untill bug is solved 
+        GapHandler::toBeFilterdPoints.push_back(transform->getMapIndexTransform(x,gap->row,angleIndex));
+        GapHandler::toBeFilterdValues.push_back(value);
     }
 }
 

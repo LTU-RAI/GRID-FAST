@@ -17,12 +17,14 @@ public:
     int gapDetectionsSize();
     opening* get(int);
     opening* getDetection(int);
-    void add(opening);
+    opening* add(opening);
     void remove(opening*);
     void updateOpening(opening*, opening);
+    void disable(opening*,int);
     void clear();
-    bool intersectOpenings(opening *o1,opening *o2);
-
+    bool intersectOpenings(opening*,opening*);
+    wallCell getNextOpening(opening*,bool,int,bool,bool checkFirst=false,vector<point_int>* pointList=NULL);
+    vector<point_int> getPointsBetweenOpenings(opening*,bool,opening*,bool); 
 private:
     vector<opening> detectionList;
     vector<vector<vector<int>>> detectionMap;
@@ -45,4 +47,5 @@ private:
     bool ccw(point,point,point);
     int checkForOpenings(wallCell*);
     void fixOverlap(opening*, opening*,MapHandler*);
+    void swapEnds(opening*,bool,opening*,bool);
 };

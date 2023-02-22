@@ -65,8 +65,18 @@ struct wall
         if(d1<d2) return d1;
         return d2;
     }
+
+    bool getCw(int index1, int index2){
+        getIndex(&index1);
+        getIndex(&index2);
+        int d1=std::abs(index1-index2);
+        int d2=wall.size()-std::max(index1,index2)+std::min(index1,index2);
+        if(d1<d2) return true;
+        return false;
+    }
 };
 
+struct polygon;
 struct opening{
     point_int start;
     point_int end;
@@ -74,7 +84,7 @@ struct opening{
     int angle;
     bool start_is_outside;
     int label=1;
-    int parent_poligon=-1;
+    polygon* parent_polygon=NULL;
     bool fliped=false;
     bool moved=false;
     int conected_to_path=-1;
@@ -88,6 +98,12 @@ struct opening{
         point_int t=start;
         start=end;
         end=t;
+        int wih=connectedWallIndexStart;
+        connectedWallIndexStart=connectedWallIndexEnd;
+        connectedWallIndexEnd=wih;
+        wall* wh=connectedWallStart;
+        connectedWallStart=connectedWallEnd;
+        connectedWallEnd=wh;
     }
 
     point_int get_center(){
@@ -98,35 +114,28 @@ struct opening{
     }
 };
 
-struct poligon{
+struct polygon{
     point_int center={0,0};
-    vector<int> sidesIndex;
-    vector<point_int> poligon_points;
-    vector<point_int> poligon_points_desplay;
-    vector<int> connectedPoligons;
+    vector<opening*> openings;
+    vector<point_int> polygon_points;
+    vector<point_int> polygon_points_desplay;
+    vector<polygon*> connectedpolygons;
     vector<vector<point_int>> connectedPaths;
     int label=1;
     bool inactiv=false;
     bool path=false;
     void add_point(point_int p, bool cw){
         if(cw){
-            poligon_points.push_back(p);
+            polygon_points.push_back(p);
         }else{
-            poligon_points.insert(poligon_points.begin(),p);
+            polygon_points.insert(polygon_points.begin(),p);
         }
     }
     void add_point_d(point_int p, bool cw){
         if(cw){
-            poligon_points_desplay.push_back(p);
+            polygon_points_desplay.push_back(p);
         }else{
-            poligon_points_desplay.insert(poligon_points_desplay.begin(),p);
-        }
-    }
-    void add_sideIndex(int index, bool cw){
-        if(cw){
-            sidesIndex.push_back(index);
-        }else{
-            sidesIndex.insert(sidesIndex.begin(),index);
+            polygon_points_desplay.insert(polygon_points_desplay.begin(),p);
         }
     }
 };

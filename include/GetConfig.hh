@@ -29,8 +29,8 @@ int sercheLenthAnt=600;
 int sercheLenthAntConect=2000;
 int sercheLenthAntConectPath=2000;
 int maxAntGap=4;
-int poligonRez=4;
-int poligonRezPath=10;
+int polygonRez=4;
+int polygonRezPath=10;
 int voronoiRez=6;
 int minimumSercheLenght=5;
 
@@ -92,10 +92,10 @@ void load_config_file(const std::string &file_path) {
             sercheLenthAntConectPath = std::stoi(value);
         }else if (key == "maxAntGap") {
             maxAntGap = std::stoi(value);
-        }else if (key == "poligonRez") {
-            poligonRez = std::stoi(value);
-        }else if (key == "poligonRezPath") {
-            poligonRezPath = std::stoi(value);
+        }else if (key == "polygonRez") {
+            polygonRez = std::stoi(value);
+        }else if (key == "polygonRezPath") {
+            polygonRezPath = std::stoi(value);
         }else if (key == "voronoiRez") {
             voronoiRez = std::stoi(value);
         }else if (key == "minimumSercheLenght") {
