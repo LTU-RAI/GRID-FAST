@@ -29,32 +29,45 @@ struct point_int{
     }
 };
 
-struct opening;
+class openingDetection;
+struct wall;
 struct wallCell{
     point_int position={-1,-1};
     bool emptyNeighbour=false;
-    vector<opening*> connectedtOpeningEnd;
-    vector<opening*> connectedtOpeningStart;
+    wall* parent=NULL;
+    int index=-1;
+    vector<openingDetection*> connectedtOpeningEnd;
+    vector<openingDetection*> connectedtOpeningStart;
 };
 
 struct wall
 {
-    vector<wallCell> wall;
+    vector<wallCell*> wall;
+    int index=-1;
 
     wallCell* getCell(int* index){
         getIndex(index);
-        return &wall[*index];
+        return wall[*index];
     }
     uint size(){
         return wall.size();
     }
-    void push_back(wallCell w){
-        wall.push_back(w);
+    wallCell* push_back(wallCell w){
+        wallCell* newW=new wallCell(w);
+        wall.push_back(newW);
+        return newW;
+    }
+
+    void clear(){
+        for(int i=0;i<wall.size();i++){
+            delete wall[i];
+        }
+        wall.clear();
     }
 
     void getIndex(int* index){
-        if(*index<0) *index=*index%wall.size()+wall.size();
-        if(*index>=wall.size()) *index=*index%wall.size();
+        if(*index<0) *index=int(wall.size())-(-*index)%int(wall.size());
+        if(*index>=wall.size()) *index=*index%int(wall.size());
     }
 
     int getDistans(int index1, int index2){
@@ -87,21 +100,15 @@ struct opening{
     polygon* parent_polygon=NULL;
     bool fliped=false;
     bool moved=false;
-    int conected_to_path=-1;
-    int connectedWallIndexStart=-1;
-    int connectedWallIndexEnd=-1;
-    wall* connectedWallStart=NULL;
-    wall* connectedWallEnd=NULL;
+    wallCell* connectedWallStart=NULL;
+    wallCell* connectedWallEnd=NULL;
 
 
     void flip(){
         point_int t=start;
         start=end;
         end=t;
-        int wih=connectedWallIndexStart;
-        connectedWallIndexStart=connectedWallIndexEnd;
-        connectedWallIndexEnd=wih;
-        wall* wh=connectedWallStart;
+        wallCell* wh=connectedWallStart;
         connectedWallStart=connectedWallEnd;
         connectedWallEnd=wh;
     }
@@ -114,9 +121,65 @@ struct opening{
     }
 };
 
+class openingDetection{
+private:
+    wallCell* startPoint=NULL;
+    wallCell* endPoint=NULL;
+public:
+    int label=1;
+    polygon* parent=NULL;
+    polygon* parentCoridor=NULL;
+    openingDetection(){}
+    ~openingDetection(){}
+    point_int start(){
+        return startPoint->position;
+    }
+    point_int end(){
+        return endPoint->position;
+    }
+    wallCell* getConnection(bool getStart){
+        if(getStart){
+            return startPoint;
+        }else{
+            return endPoint;
+        }
+    }
+    void disconnect(bool changeStart){
+        //disconnect
+        wallCell* point=changeStart?startPoint:endPoint;
+        if(point==NULL) return;
+        vector<openingDetection*>* list=changeStart?&point->connectedtOpeningStart:&point->connectedtOpeningEnd;
+        for(int i=0;i<list->size();i++){
+            if(list->at(i)!=this) continue;
+            list->erase(list->begin()+i);
+        }  
+    }
+    void connect(bool changeStart,wallCell* newW){
+        disconnect(changeStart);
+        //connect
+        if(changeStart){
+            startPoint=newW;
+        }else{
+            endPoint=newW;
+        }
+        vector<openingDetection*>* list=changeStart?&newW->connectedtOpeningStart:&newW->connectedtOpeningEnd;
+        list->push_back(this);
+    }
+    opening getOpening(){
+        opening op;
+        op.start=start();
+        op.end=end();
+        op.connectedWallStart=startPoint;
+        op.connectedWallEnd=endPoint;
+        op.label=label;
+        return op;
+    }
+};
+
+
 struct polygon{
     point_int center={0,0};
-    vector<opening*> openings;
+    vector<openingDetection*> openings;
     vector<point_int> polygon_points;
     vector<point_int> polygon_points_desplay;
     vector<polygon*> connectedpolygons;

@@ -4,9 +4,9 @@
      
      </node> 
 
-     <node pkg="topology_mapping" type="topology_mapping_node" name="topology_mapping" output="screen"> 
+     <!--node pkg="topology_mapping" type="topology_mapping_node" name="topology_mapping" output="screen"> 
      
-     </node> 
+     </node--> 
 
 
 </launch>

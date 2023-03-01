@@ -145,7 +145,7 @@ class TopologyMapping{
             ROS_INFO("g4");
             openingList.update(&map);
             ROS_INFO("g5");
-            polygonList.updateIntersections(&openingList);
+            polygonList.updateIntersections(&openingList,&map);
             ROS_INFO("g6");
             polygonList.generatePolygonArea(&openingList);
             ROS_INFO("g7");
@@ -1262,15 +1262,6 @@ class TopologyMapping{
             OpeningListMsg.list[i].end.y=oplist[i].end.y;
             OpeningListMsg.list[i].label=oplist[i].label;
         }*/
-        OpeningListMsg.list.resize(openingList.size());//+openingList.gapDetectionsSize());
-        for(int i=0; i<openingList.size(); i++){
-            opening* op=openingList.get(i);
-            OpeningListMsg.list[i].start.x=op->start.x;
-            OpeningListMsg.list[i].start.y=op->start.y;
-            OpeningListMsg.list[i].end.x=op->end.x;
-            OpeningListMsg.list[i].end.y=op->end.y;
-            OpeningListMsg.list[i].label=op->label;
-        }
         /*for(int i=0; i<openingList.gapDetectionsSize(); i++){
             opening* op=openingList.getDetection(i);
             op->label=12;
@@ -1281,7 +1272,6 @@ class TopologyMapping{
             OpeningListMsg.list[i+s].end.y=op->end.y;
             OpeningListMsg.list[i+s].label=op->label;
         }*/
-        pubOpeningList.publish(OpeningListMsg);
         topoMapMsg.header.stamp = ros::Time::now();
         for(int y=0; y<map.getMapSizeY();y++){//mapSizeY;y++){
             for(int x=0;x<map.getMapSizeX();x++){//mapSizeX;x++){  
@@ -1297,25 +1287,16 @@ class TopologyMapping{
             dMap[oplist[oi].start.x][oplist[oi].start.y]=0;
             dMap[oplist[oi].end.x][oplist[oi].end.y]=50;
         }*/
-        for(int oi=0;oi<openingList.size();oi++){
-            opening* op=openingList.get(oi);
-            dMap[op->start.x][op->start.y]=0;
-            dMap[op->end.x][op->end.y]=50;
-        }
-        for(int y=0; y<mapSizeY;y++){
-            for(int x=0;x<mapSizeX;x++){  
-                int index=x+y*mapSizeX;            
-                topoMapMsg.data[index]=dMap[x][y];
-            }
-        }
-        pubdMap.publish(topoMapMsg);
 
         vector<opening> pubOpList;
         for(int i=0; i<openingList.size(); i++){
-            opening op=*openingList.get(i);
-            if(!show_removed_openings && op.label>10) continue;
+            opening op=openingList.get(i)->getOpening();
             pubOpList.push_back(op);
         }
+        /*for(int i=0; i<openingList.gapDetectionsSize(); i++){
+            opening op=*openingList.getDetection(i);
+            pubOpList.push_back(op);
+        }*/
 
         jsk_recognition_msgs::PolygonArray pubPolyArray_old;
         pubPolyArray_old.header.frame_id = "map";
@@ -1328,6 +1309,8 @@ class TopologyMapping{
         for(int i=0; i<pubOpList.size(); i++){
             //convert the line of an opening to a rectangular polygon
             opening op=pubOpList[i];
+            dMap[op.start.x][op.start.y]=op.connectedWallStart->index*10;
+            dMap[op.end.x][op.end.y]=op.connectedWallEnd->index*10;
             point side={(double)(op.end.x-op.start.x)*resolution,
                         (double)(op.end.y-op.start.y)*resolution};
             
@@ -1373,6 +1356,13 @@ class TopologyMapping{
             pubPolyArray_old.labels[i]=op.label;
             //pubPolyArray_old.likelihood[i]=op.parent_polygon;
         }
+        for(int y=0; y<mapSizeY;y++){
+            for(int x=0;x<mapSizeX;x++){  
+                int index=x+y*mapSizeX;            
+                topoMapMsg.data[index]=dMap[x][y];
+            }
+        }
+        pubdMap.publish(topoMapMsg);
         pubTopoPoly_debug.publish(pubPolyArray_old);
         
         jsk_recognition_msgs::PolygonArray pubPolyArray;
