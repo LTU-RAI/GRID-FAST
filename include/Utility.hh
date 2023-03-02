@@ -163,6 +163,29 @@ ant_data ant_step(point_int start, bool clockwise, point_int direction, int** ma
     return step;
 } 
 
+
+vector<point_int> drawLine(point_int start,point_int end){
+    vector<point_int> p;
+    point_int lenght={end.x-start.x,end.y-start.y};
+    point_int step={lenght.x/std::abs(lenght.x),lenght.y/std::abs(lenght.y)};
+    lenght={std::abs(lenght.x),std::abs(lenght.y)};
+    point_int steps_taken={0,0};
+    
+    p.push_back(start);
+    
+    for(int s=0;s<lenght.x+lenght.y;s++){
+        if(steps_taken.x*lenght.y<steps_taken.y*lenght.x && lenght.x!=0 || lenght.y==0){
+            steps_taken.x+=1;
+            start.x+=step.x;
+        }else{
+            steps_taken.y+=1;
+            start.y+=step.y;
+        }
+        p.push_back(start);
+        
+    }
+    return p;
+}
 // Retrun number of cells is wall overlapt by a ray between p1 and p2
 int checkForWallRay(point_int p1, point_int p2, int** map){
     int wallcount=0;
@@ -204,24 +227,7 @@ bool checkForWall(opening o,int maximumWallCount, int** map){
     }
 }
 
-bool checkIfObstructed(point_int p1, point_int p2, int** map){
-    double lenght=dist(p1,p2);
-    point normal={(p2.y-p1.y)/(lenght)*minGroupSize/2,-(p2.x-p1.x)/(lenght)*minGroupSize/2};
-    point_int tp1=p1, tp2=p2;
-    if(checkForWallRay(tp1,tp2,map)>0) return true;
-    tp1.x=std::round(p1.x+normal.x);
-    tp1.y=std::round(p1.y+normal.y);
-    tp2.x=std::round(p2.x+normal.x);
-    tp2.y=std::round(p2.y+normal.y);
-    if(checkForWallRay(tp1,tp2,map)>0) return true;
-    tp1.x=std::round(p1.x-normal.x);
-    tp1.y=std::round(p1.y-normal.y);
-    tp2.x=std::round(p2.x-normal.x);
-    tp2.y=std::round(p2.y-normal.y);
-    if(checkForWallRay(tp1,tp2,map)>0) return true;
 
-    return false;
-}
 
 
 

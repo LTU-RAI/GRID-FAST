@@ -13,6 +13,8 @@ public:
     void updateIntersections(OpeningHandler*,MapHandler*);
     void getPathways(OpeningHandler*);
     void generatePolygonArea(OpeningHandler*);
+    void generateRobotPath(OpeningHandler*,MapHandler*);
+    bool checkIfObstructed(point_int, point_int, MapHandler*);
     int size();
     polygon* get(int);
     polygon* add(polygon);
@@ -22,8 +24,11 @@ public:
 private:
     vector<polygon*> polygonList; 
     void creatIntersection(OpeningHandler*,openingDetection*);
+    void creatPathway(OpeningHandler*,openingDetection*);
     void getArea(int,OpeningHandler*);
     point_int getPolygonCenter(vector<point_int> sList);
+    void getPathForPolygon(polygon*,OpeningHandler*, MapHandler*);
+    vector<point_int> generateVoronoi(polygon*,MapHandler* , point_int start, point_int end={-1,-1});
     void optimizeIntersection(polygon*,OpeningHandler* openingList, MapHandler* map);
     double DFunction(double);
     void removeSideFromPolygon(polygon*,openingDetection*, OpeningHandler*);

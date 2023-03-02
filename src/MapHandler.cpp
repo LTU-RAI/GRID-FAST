@@ -157,10 +157,10 @@ point_int MapHandler::rotate_dir(point_int dir, bool cw){
 // Retrun number of cells is wall overlapt by a ray between p1 and p2
 int MapHandler::checkForWallRay(point_int p1, point_int p2){
     int wallcount=0;
-    double l=0.4;
+    double l=0.1;
     double opLenght=dist(p1,p2);
-    point normdVop={(p2.x-p1.x)/(opLenght*l),(p2.y-p1.y)/(opLenght*l)};
-    for(int wallScan=0;wallScan<(int)(opLenght*l);wallScan++){
+    point normdVop={((p2.x-p1.x)/(opLenght))*l,((p2.y-p1.y)/(opLenght))*l};
+    for(int wallScan=0;wallScan<(int)(opLenght/l);wallScan++){
         point_int pp={p1.x+(int)(std::round(normdVop.x*wallScan)), p1.y+(int)(std::round(normdVop.y*wallScan))};
         if(MapHandler::getMap(pp.x,pp.y)!=MAP_UNOCCUPIED){
             wallcount+=1;

@@ -129,6 +129,7 @@ public:
     int label=1;
     polygon* parent=NULL;
     polygon* parentCoridor=NULL;
+    vector<point_int> occupiedPoints;
     openingDetection(){}
     ~openingDetection(){}
     point_int start(){
@@ -174,9 +175,15 @@ public:
         op.label=label;
         return op;
     }
+    point_int getCenter(){
+        point_int center={0,0};
+        center.x=(end().x-start().x)/2+start().x;
+        center.y=(end().y-start().y)/2+start().y;
+        return center;
+    }
 };
 
-
+typedef vector<point_int> robotPath;
 struct polygon{
     point_int center={0,0};
     vector<openingDetection*> openings;
@@ -184,6 +191,8 @@ struct polygon{
     vector<point_int> polygon_points_desplay;
     vector<polygon*> connectedpolygons;
     vector<vector<point_int>> connectedPaths;
+    vector<robotPath> pathList;
+    vector<point_int> fillPoints;
     int label=1;
     bool inactiv=false;
     bool path=false;

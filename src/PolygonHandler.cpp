@@ -27,6 +27,8 @@ void PolygonHandler::updateIntersections(OpeningHandler* openingList, MapHandler
             PolygonHandler::optimizeIntersection(PolygonHandler::polygonList[pIndex],openingList,map);
         }
     }
+
+    PolygonHandler::getPathways(openingList);
 }
 
 void PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetection* startOp){
@@ -50,7 +52,8 @@ void PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetect
         }
         //bad connection
         if(w.connectedtOpeningStart.size()>0){
-            ROS_INFO("----------WARNING--------");
+            //ROS_INFO("----------WARNING--------");
+            openingList->disable(w.connectedtOpeningStart[0],26);
         }
     }
     if(newPoly.openings.size()<3){
@@ -64,11 +67,42 @@ void PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetect
 }
 
 void PolygonHandler::getPathways(OpeningHandler* openingList){
-    for(int index=0;index<PolygonHandler::polygonList.size();index++){
-        for(int oIndex=0;oIndex<PolygonHandler::polygonList[index]->openings.size();index++){
-
+    int pSize=PolygonHandler::polygonList.size();
+    for(int index=0;index<pSize;index++){
+        if(PolygonHandler::polygonList[index]->path) continue;
+        for(int oIndex=0;oIndex<PolygonHandler::polygonList[index]->openings.size();oIndex++){
+            openingDetection* op=PolygonHandler::polygonList[index]->openings[oIndex];
+            if(op->parentCoridor!=NULL) continue;
+            PolygonHandler::creatPathway(openingList,op);
         }
     }
+}
+
+void PolygonHandler::creatPathway(OpeningHandler* openingList,openingDetection* targetOp){
+    polygon newPoly;
+    newPoly.path=true;
+    newPoly.openings.push_back(targetOp);
+    vector<wallCell*> wList;
+    wallCell w=openingList->getNextOpening(targetOp,false,1,true,true,false,&wList);
+
+    if(w.connectedtOpeningStart[0]!=targetOp){
+        newPoly.openings.push_back(w.connectedtOpeningStart[0]);
+        newPoly.label=64;
+    }else{
+        bool test=false;
+        for(int i=0;i<wList.size();i++){
+            if(!wList[i]->emptyNeighbour) continue;
+            test=true;
+            break;
+        }
+
+        if(test){
+            newPoly.label=52;
+        }else{
+            newPoly.label=41;
+        }
+    }
+    PolygonHandler::add(newPoly);
 }
 
 void PolygonHandler::generatePolygonArea(OpeningHandler* openingList){
@@ -87,8 +121,8 @@ void PolygonHandler::getArea(int index, OpeningHandler* openingList){
                                                       poly->openings[sideIndex]->start(),0.8);
         poly->polygon_points.insert(poly->polygon_points.end(),pointListOpening.begin(),pointListOpening.end());
         vector<point_int> pointList = openingList->getPointsBetweenOpenings(
-                poly->openings[sideIndex],true,
-                poly->openings[(sideIndex+1)%openingsSize],false);
+                poly->openings[sideIndex],!poly->path,
+                poly->openings[(sideIndex+1)%openingsSize],poly->path);
         poly->polygon_points.insert(poly->polygon_points.end(),pointList.begin(),pointList.end());
         if(pointList.size()==0) continue;
         for(int i=0;i<pointList.size()-1;i+=polygonRez){
@@ -110,6 +144,252 @@ point_int PolygonHandler::getPolygonCenter(vector<point_int> sList){
     return center;
 }
 
+void PolygonHandler::generateRobotPath(OpeningHandler* openingList, MapHandler* map){
+    for(int pIndex=0;pIndex<PolygonHandler::polygonList.size();pIndex++){
+        PolygonHandler::getPathForPolygon(PolygonHandler::polygonList[pIndex],openingList,map);
+    }
+}
+
+void PolygonHandler::getPathForPolygon(polygon* poly,OpeningHandler* openingList, MapHandler* map){
+    for(int sideIndex=0; sideIndex<poly->openings.size();sideIndex++){
+        int label=poly->label;
+        openingDetection* targetOp=poly->openings[sideIndex];
+        point_int center=poly->center;
+        point_int oCenter1=targetOp->getCenter();
+        point_int oCenter2=center;
+
+        if(poly->path && poly->openings.size()==2){
+            oCenter2=poly->openings.back()->getCenter();
+        }
+        vector<point_int> np;
+        if((!poly->path)&&!PolygonHandler::checkIfObstructed(center,oCenter1,map)){
+            np.push_back(oCenter1);
+            np.push_back(center);
+        }else if(poly->path && !checkIfObstructed(oCenter1,oCenter2,map)){
+            np.push_back(oCenter1);
+            np.push_back(oCenter2);
+            sideIndex+=1;
+        }else{
+            vector<point_int> vp;
+            if(!poly->path){
+                vp=PolygonHandler::generateVoronoi(poly,map,oCenter1,center);
+            }else if(poly->path && poly->openings.size()==1){
+                vp=PolygonHandler::generateVoronoi(poly,map,oCenter1);
+            }else{
+                vp=PolygonHandler::generateVoronoi(poly,map,oCenter1,oCenter2);
+            }
+            bool toC=false;
+            for(int n=0;n<vp.size();n+=voronoiRez){
+                np.push_back(vp[n]);
+                if((!poly->path) && !PolygonHandler::checkIfObstructed(vp[n],center,map)){
+                    toC=true;
+                    np.push_back(center);
+                    break;
+                }
+            }
+            if(!toC) np.push_back(vp[vp.size()-1]);
+            
+        }
+        poly->pathList.push_back(np);
+        if(poly->path) continue;
+    }
+}
+
+bool PolygonHandler::checkIfObstructed(point_int p1, point_int p2, MapHandler* map){
+    double lenght=dist(p1,p2);
+    point normal={(p2.y-p1.y)/(lenght)*minGroupSize/2,-(p2.x-p1.x)/(lenght)*minGroupSize/2};
+    point_int tp1=p1, tp2=p2;
+    if(map->checkForWallRay(tp1,tp2)>0) return true;
+    tp1.x=std::round(p1.x+normal.x);
+    tp1.y=std::round(p1.y+normal.y);
+    tp2.x=std::round(p2.x+normal.x);
+    tp2.y=std::round(p2.y+normal.y);
+    if(map->checkForWallRay(tp1,tp2)>0) return true;
+    tp1.x=std::round(p1.x-normal.x);
+    tp1.y=std::round(p1.y-normal.y);
+    tp2.x=std::round(p2.x-normal.x);
+    tp2.y=std::round(p2.y-normal.y);
+    if(map->checkForWallRay(tp1,tp2)>0) return true;
+
+    return false;
+}
+
+robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, point_int start, point_int end){
+    vector<point_int> PL=poly->polygon_points;
+    vector<point_int> filledPoints;
+    if(poly->fillPoints.size()==0){
+        filledPoints=fillPoly(PL);
+        poly->fillPoints=filledPoints;
+    }else{
+        filledPoints=poly->fillPoints;
+    }
+    point_int maxP={-1,-1},minP={-1,-1};
+    for(int n=0;n<PL.size();n++){
+        //setMap(PL[n].x,PL[n].y,0,debugMap);
+        if(PL[n].x>maxP.x) maxP.x=PL[n].x;
+        if(PL[n].y>maxP.y) maxP.y=PL[n].y;
+        if(PL[n].x<minP.x || minP.x==-1) minP.x=PL[n].x;
+        if(PL[n].y<minP.y || minP.y==-1) minP.y=PL[n].y;
+    }
+    //maxP={maxP.x+1,maxP.y+1};
+    //minP={minP.x-1,minP.y-1};
+    if(start.x>maxP.x) maxP.x=start.x;
+    if(start.y>maxP.y) maxP.y=start.y;
+    if(start.x<minP.x || minP.x==-1) minP.x=start.x;
+    if(start.y<minP.y || minP.y==-1) minP.y=start.y;
+    if(end.x!=-1){
+        if(end.x>maxP.x) maxP.x=end.x;
+        if(end.y>maxP.y) maxP.y=end.y;
+        if(end.x<minP.x || minP.x==-1) minP.x=end.x;
+        if(end.y<minP.y || minP.y==-1) minP.y=end.y;
+    }
+    
+    vector<vector<bool>> thinMap;
+    thinMap.resize(maxP.x-minP.x+2);
+    for(int i1=0;i1<thinMap.size();i1++){
+        thinMap[i1].resize(maxP.y-minP.y+2);
+        for(int i2=0;i2<thinMap.size();i2++){
+            thinMap[i1][i2]=false;
+        }
+    }
+    for(int i=0;i<filledPoints.size();i++) 
+        thinMap[filledPoints[i].x-minP.x+1][filledPoints[i].y-minP.y+1]=true;
+    start={start.x-minP.x+1,start.y-minP.y+1};
+    thinMap[start.x][start.y]=true;
+
+    if(end.x!=-1){
+        end={end.x-minP.x+1,end.y-minP.y+1};
+        thinMap[end.x][end.y]=true;
+    } 
+    point_int P[]={{0,0},{-1,0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0}};
+    bool check=false;
+    while(!check){
+        for(int sids=0;sids<2;sids++){
+            vector<point_int> M;
+            for(int i=1;i<thinMap.size()-1;i++){
+                for(int j=1;j<thinMap[i].size()+1;j++){
+                    point_int rp={i,j};
+                    if(!thinMap[i][j] ||
+                        rp==start || rp==end)continue;
+                    int B=0;
+                    for(int pIndex=1; pIndex<9;pIndex++){
+                        if(thinMap[i+P[pIndex].x][j+P[pIndex].y]) B+=1;
+                    }
+                    if(B<2 || B>6) continue;
+
+                    int A=0;
+                    for(int pIndex=1; pIndex<9;pIndex++){
+                        if(!thinMap[i+P[pIndex].x][j+P[pIndex].y] &&
+                            thinMap[i+P[pIndex+1].x][j+P[pIndex+1].y]) A+=1;
+                    }
+                    if(A!=1) continue;
+                    int c[]={1,3,5};
+                    int d[]={3,4,7};
+                    if(sids==1){
+                        c[0]=1; c[1]=3; c[2]=7;
+                        d[0]=1; d[1]=5; d[2]=7;
+                    }
+                    bool t=true;
+                    for(int cIndex=0;cIndex<3;cIndex++){
+                        if(!thinMap[i+P[c[cIndex]].x][j+P[c[cIndex]].y]){
+                            t=false;
+                            break;
+                        }
+                    }
+                    if(t) continue;
+
+                    t=true;
+                    for(int dIndex=0;dIndex<3;dIndex++){
+                        if(!thinMap[i+P[d[dIndex]].x][j+P[d[dIndex]].y]){
+                            t=false;
+                            break;
+                        }
+                    }
+                    if(t) continue;
+
+                    M.push_back(rp);
+                }
+            }
+            if(M.size()==0){
+                check=true;
+                break;
+            }else{
+                for(int i=0;i<M.size();i++){
+                    thinMap[M[i].x][M[i].y]=false;
+                }
+            }
+        }
+    }
+    //Get voronoi path
+    point_int P2[]={{-1,0},{0,1},{1,0},{0,-1},{-1,1},{1,1},{1,-1},{-1,-1}};
+    vector<robotPath> paths;
+    paths.resize(1);
+    int cPathIndex=0;
+    point_int curentPoint=start;
+    point_int newPoint=curentPoint;
+    paths[cPathIndex].push_back(curentPoint);
+    check=false;
+    while (!check){
+        thinMap[curentPoint.x][curentPoint.y]=false;
+        int c=0;
+        bool flip=true;
+        for(int pIndex=0;pIndex<8;pIndex++){
+            if(curentPoint.x+P2[pIndex].x==end.x && curentPoint.y+P2[pIndex].y==end.y){
+                newPoint={curentPoint.x+P2[pIndex].x,curentPoint.y+P2[pIndex].y};
+                paths[cPathIndex].push_back(newPoint);
+                check=true;
+                break;
+            }
+            if(map->getMap(curentPoint.x+P2[pIndex].x+minP.x-1,curentPoint.y+P2[pIndex].y+minP.y-1)==100) continue;
+            if(curentPoint.x+P2[pIndex].x<thinMap.size()&&curentPoint.x+P2[pIndex].x>=0&&
+               curentPoint.y+P2[pIndex].y<thinMap[0].size()&&curentPoint.y+P2[pIndex].y>=0&& 
+               thinMap[curentPoint.x+P2[pIndex].x][curentPoint.y+P2[pIndex].y]){
+                if(pIndex>=4){
+                    if(map->getMap(curentPoint.x+P2[(pIndex+4)%8].x+minP.x-1,curentPoint.y+P2[(pIndex+4)%8].y+minP.y-1)==100 &&
+                        map->getMap(curentPoint.x+P2[(pIndex+5)%8].x+minP.x-1,curentPoint.y+P2[(pIndex+5)%8].y+minP.y-1)==100) continue;
+                }
+                c+=1;
+                if(flip) newPoint={curentPoint.x+P2[pIndex].x,curentPoint.y+P2[pIndex].y};
+                flip=false;
+            }
+        }
+        if(check) break;
+        if(c==0){
+            if(cPathIndex-1<0){
+                int maxS=-1;
+                for (int p=0; p<paths.size(); p++){
+                    if(int(paths[p].size())>maxS){
+                        maxS=paths[p].size();
+                        cPathIndex=p;
+                    }
+                }
+                check=true;
+                break;
+                
+            }else{
+                cPathIndex-=1;
+                curentPoint=paths[cPathIndex].back();
+                continue;
+            }
+        }else if(c==1){
+            paths[cPathIndex].push_back(newPoint);
+        }else{
+            paths.push_back(paths[cPathIndex]);
+            cPathIndex=paths.size()-1;
+            paths[cPathIndex].push_back(newPoint);
+        }
+        curentPoint=newPoint;
+    }
+    
+    for(int i=0; i<paths[cPathIndex].size();i++){
+        paths[cPathIndex][i].x+=minP.x-1;
+        paths[cPathIndex][i].y+=minP.y-1;
+    }
+
+    return paths[cPathIndex];
+}
+
+
 int PolygonHandler::size(){
     return PolygonHandler::polygonList.size();
 }
@@ -121,7 +401,11 @@ polygon* PolygonHandler::get(int index){
 polygon* PolygonHandler::add(polygon newPoly){
     polygon* polyToAdd=new polygon(newPoly);
     for(int i=0;i<polyToAdd->openings.size();i++){
-        polyToAdd->openings[i]->parent=polyToAdd;
+        if(polyToAdd->path){
+            polyToAdd->openings[i]->parentCoridor=polyToAdd;
+        }else{
+            polyToAdd->openings[i]->parent=polyToAdd;
+        }
         //polyToAdd->openings[i]->label=PolygonHandler::polygonList.size()%8;
     }
     //polyToAdd->label=PolygonHandler::polygonList.size()%8;
@@ -149,38 +433,52 @@ void PolygonHandler::clear(){
 }
 
 void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingList, MapHandler* map){
+    ROS_INFO("o0");
     vector<vector<wallCell*>> walls;
     vector<int> startIndex;
     walls.resize(poly->openings.size());
     bool del=false;
+
+    ROS_INFO("o1");
     for(int sideIndex=0;sideIndex<poly->openings.size();sideIndex++){
+        ROS_INFO("t1");
         openingDetection* targetOp1=poly->openings[sideIndex];
         openingDetection* targetOp2=poly->openings[(sideIndex+1)%poly->openings.size()];
         vector<wallCell*> currentWall;
         vector<wallCell*> o1back;
+        ROS_INFO("t2");
         wallCell w=openingList->getNextOpening(targetOp1,true,2,false,true,true,&o1back);
         int loopfrom=o1back.size()-1;
         if(w.connectedtOpeningEnd.size()!=0){
             if(w.connectedtOpeningEnd[0]==targetOp1) loopfrom=loopfrom/2;
         }
-        
+        ROS_INFO("t3");
         for(int i=loopfrom;i>=0;i--){
             currentWall.push_back(o1back[i]);
         }
+        ROS_INFO("t3.5");
         vector<wallCell*> o1ToO2;
         openingList->getPointsBetweenOpenings(targetOp1,true,targetOp2,false,&o1ToO2);
+        ROS_INFO("%i, %i",targetOp1->getConnection(true)->index,targetOp2->getConnection(false)->index);
+        if(o1ToO2.size()==1){
+            PolygonHandler::removeSideFromPolygon(poly,targetOp1,openingList);
+            PolygonHandler::removeSideFromPolygon(poly,targetOp2,openingList); 
+            return;
+        }
         currentWall.insert(currentWall.end(),o1ToO2.begin()+1,o1ToO2.end()-1);
-
+        ROS_INFO("t4");
         vector<wallCell*> o2front;
         w=openingList->getNextOpening(targetOp2,false,1,true,true,true,&o2front);
         int loopto=o2front.size();
         if(w.connectedtOpeningStart.size()!=0){
             if(w.connectedtOpeningStart[0]==targetOp2) loopto=loopto/2;
         }
-        
+        ROS_INFO("t5");
         if(o2front.size()!=0) currentWall.insert(currentWall.end(),o2front.begin(),o2front.begin()+loopto);
         walls[sideIndex]=currentWall;
+        ROS_INFO("t6");
     }
+    ROS_INFO("o2");
     point_int centerP={0,0};
     vector<vector<wallCell*>> startPoints,endPoints;
     startPoints.resize(walls.size());
@@ -215,6 +513,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
         }
 
     }
+    ROS_INFO("o3");
     centerP.x=centerP.x/(poly->openings.size()*2);
     centerP.y=centerP.y/(poly->openings.size()*2);
     int listIndex=0;
@@ -231,6 +530,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
         double bestScore=0, bestLength=0;
         bool first=true, changed=false;
         int sIndex=0, eIndex=0, decrisCount=0;
+        ROS_INFO("j1");
         while(true){
             if(sIndex+1<startS.size() && (eIndex+1>=endS.size() || 
                 dist(startS[sIndex+1]->position,endS[eIndex]->position)<
@@ -252,7 +552,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             if(first || lenght<bestLength){
                 bestLength=lenght;
             }else{
-                if(decrisCount>=4){
+                if(decrisCount>=6){
                     best=hbest;
                     changed=true;
                     decrisCount=0;
@@ -266,6 +566,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
                 hbest=test;
             }
         }
+        ROS_INFO("j2");
         if(!openingList->checkForWall(best,map)){
             op->connect(true,best.connectedWallStart);
             op->connect(false,best.connectedWallEnd);
@@ -280,6 +581,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             }
         }
     }
+    ROS_INFO("o4");
 }
 double PolygonHandler::DFunction(double length){
     double minDistToCenter=6;

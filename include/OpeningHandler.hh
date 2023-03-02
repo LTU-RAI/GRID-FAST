@@ -47,4 +47,5 @@ private:
     int checkForOpenings(wallCell*);
     void fixOverlap(openingDetection*, openingDetection*,MapHandler*);
     void swapEnds(opening*,bool,opening*,bool);
+    vector<point_int> generateOpeningPoints(openingDetection *o);
 };

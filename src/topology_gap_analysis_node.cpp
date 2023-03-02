@@ -149,7 +149,8 @@ class TopologyMapping{
             ROS_INFO("g6");
             polygonList.generatePolygonArea(&openingList);
             ROS_INFO("g7");
-
+            //polygonList.generateRobotPath(&openingList,&map);
+            ROS_INFO("g8");
             /*oplist.clear();
             topologyScan();
             //for a cleaner output, fitToCorridor is used once more
@@ -1384,21 +1385,24 @@ class TopologyMapping{
             ROS_INFO("Node count: %i",c);
         }
         pubTopoPoly.publish(pubPolyArray);
-        /*for(int i=0; i<robotPath.size();i++){
-            if(robotPath[i].size()<2){
-                robotPath.erase(robotPath.begin()+i);
-                i-=1;
+        
+        vector<robotPath> robotPathList;
+        for(int i=0; i<polygonList.size(); i++){
+            polygon* p=polygonList.get(i);
+            for(int pathI=0;pathI<p->pathList.size();pathI++){
+                robotPathList.push_back(p->pathList[pathI]);
             }
         }
+
         visualization_msgs::MarkerArray msgRobotPath;
-        msgRobotPath.markers.resize(1+robotPath.size());
+        msgRobotPath.markers.resize(1+robotPathList.size());
         msgRobotPath.markers[0].header.frame_id = "map";
         msgRobotPath.markers[0].header.stamp = ros::Time::now();
         msgRobotPath.markers[0].action=msgRobotPath.markers[0].DELETEALL;
-        for(int i=1; i<robotPath.size()+1;i++){
+        for(int i=1; i<robotPathList.size()+1;i++){
             msgRobotPath.markers[i].header.frame_id = "map";
             msgRobotPath.markers[i].header.stamp = ros::Time::now();
-            msgRobotPath.markers[i].ns="robotPath";
+            msgRobotPath.markers[i].ns="robotPathList";
             msgRobotPath.markers[i].id=i;
             msgRobotPath.markers[i].type=msgRobotPath.markers[i].LINE_STRIP;
             msgRobotPath.markers[i].action=msgRobotPath.markers[i].ADD;
@@ -1417,18 +1421,18 @@ class TopologyMapping{
             msgRobotPath.markers[i].color.r=1.0;
             msgRobotPath.markers[i].color.b=0.0;
             msgRobotPath.markers[i].color.g=0.0;
-            msgRobotPath.markers[i].points.resize(robotPath[i-1].size());
+            msgRobotPath.markers[i].points.resize(robotPathList[i-1].size());
             msgRobotPath.markers[i].lifetime=ros::Duration(0);
-            for(int m=0; m<robotPath[i-1].size();m++){
-                msgRobotPath.markers[i].points[m].x=(robotPath[i-1][m].x-MapOrigenX)*resolution;
-                msgRobotPath.markers[i].points[m].y=(robotPath[i-1][m].y-MapOrigenY)*resolution;
+            for(int m=0; m<robotPathList[i-1].size();m++){
+                msgRobotPath.markers[i].points[m].x=(robotPathList[i-1][m].x-MapOrigenX)*resolution;
+                msgRobotPath.markers[i].points[m].y=(robotPathList[i-1][m].y-MapOrigenY)*resolution;
                 msgRobotPath.markers[i].points[m].z=0;
             }
         }
         
         pubRobotPath.publish(msgRobotPath);
         
-        topoMapMsg.header.stamp = ros::Time::now();
+        /*topoMapMsg.header.stamp = ros::Time::now();
         topometricMapMsg.header=topoMapMsg.header;
         topometricMapMsg.info=topoMapMsg.info;
         topometricMapMsg.polygonType.resize(topoMapMsg.data.size());
