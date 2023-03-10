@@ -118,7 +118,7 @@ void PolygonHandler::getArea(int index, OpeningHandler* openingList){
     int openingsSize=poly->openings.size();
     for(int sideIndex=0;sideIndex<openingsSize;sideIndex++){
         vector<point_int> pointListOpening=fillPoints(poly->openings[sideIndex]->end(),
-                                                      poly->openings[sideIndex]->start(),0.8);
+                                                      poly->openings[sideIndex]->start(),0.8,true);
         poly->polygon_points.insert(poly->polygon_points.end(),pointListOpening.begin(),pointListOpening.end());
         vector<point_int> pointList = openingList->getPointsBetweenOpenings(
                 poly->openings[sideIndex],!poly->path,
@@ -130,6 +130,12 @@ void PolygonHandler::getArea(int index, OpeningHandler* openingList){
         }
         poly->polygon_points_desplay.push_back(pointList.back());
     }
+    for(int i=0;i<poly->polygon_points.size();i++){
+        if(poly->polygon_points[i]!=poly->polygon_points[(i+1)%poly->polygon_points.size()]) continue;
+        poly->polygon_points.erase(poly->polygon_points.begin()+i);
+        i--;
+    }
+
     poly->center=PolygonHandler::getPolygonCenter(poly->polygon_points);
 }
 point_int PolygonHandler::getPolygonCenter(vector<point_int> sList){
@@ -144,20 +150,19 @@ point_int PolygonHandler::getPolygonCenter(vector<point_int> sList){
     return center;
 }
 
-void PolygonHandler::generateRobotPath(OpeningHandler* openingList, MapHandler* map){
+void PolygonHandler::generateRobotPath(OpeningHandler* openingList, MapHandler* map, MapHandler* mapD){
     for(int pIndex=0;pIndex<PolygonHandler::polygonList.size();pIndex++){
-        PolygonHandler::getPathForPolygon(PolygonHandler::polygonList[pIndex],openingList,map);
+        PolygonHandler::getPathForPolygon(PolygonHandler::polygonList[pIndex],openingList,map,mapD);
     }
 }
 
-void PolygonHandler::getPathForPolygon(polygon* poly,OpeningHandler* openingList, MapHandler* map){
+void PolygonHandler::getPathForPolygon(polygon* poly,OpeningHandler* openingList, MapHandler* map, MapHandler* mapD){
     for(int sideIndex=0; sideIndex<poly->openings.size();sideIndex++){
         int label=poly->label;
         openingDetection* targetOp=poly->openings[sideIndex];
         point_int center=poly->center;
         point_int oCenter1=targetOp->getCenter();
         point_int oCenter2=center;
-
         if(poly->path && poly->openings.size()==2){
             oCenter2=poly->openings.back()->getCenter();
         }
@@ -165,18 +170,17 @@ void PolygonHandler::getPathForPolygon(polygon* poly,OpeningHandler* openingList
         if((!poly->path)&&!PolygonHandler::checkIfObstructed(center,oCenter1,map)){
             np.push_back(oCenter1);
             np.push_back(center);
-        }else if(poly->path && !checkIfObstructed(oCenter1,oCenter2,map)){
+        }else if(poly->path && poly->openings.size()==2 && !checkIfObstructed(oCenter1,oCenter2,map)){
             np.push_back(oCenter1);
             np.push_back(oCenter2);
-            sideIndex+=1;
         }else{
             vector<point_int> vp;
             if(!poly->path){
-                vp=PolygonHandler::generateVoronoi(poly,map,oCenter1,center);
+                vp=PolygonHandler::generateVoronoi(poly,map,mapD,oCenter1,center);
             }else if(poly->path && poly->openings.size()==1){
-                vp=PolygonHandler::generateVoronoi(poly,map,oCenter1);
+                vp=PolygonHandler::generateVoronoi(poly,map,mapD,oCenter1);
             }else{
-                vp=PolygonHandler::generateVoronoi(poly,map,oCenter1,oCenter2);
+                vp=PolygonHandler::generateVoronoi(poly,map,mapD,oCenter1,oCenter2);
             }
             bool toC=false;
             for(int n=0;n<vp.size();n+=voronoiRez){
@@ -188,7 +192,6 @@ void PolygonHandler::getPathForPolygon(polygon* poly,OpeningHandler* openingList
                 }
             }
             if(!toC) np.push_back(vp[vp.size()-1]);
-            
         }
         poly->pathList.push_back(np);
         if(poly->path) continue;
@@ -214,18 +217,22 @@ bool PolygonHandler::checkIfObstructed(point_int p1, point_int p2, MapHandler* m
     return false;
 }
 
-robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, point_int start, point_int end){
+robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, MapHandler* mapD, point_int start, point_int end){
     vector<point_int> PL=poly->polygon_points;
     vector<point_int> filledPoints;
     if(poly->fillPoints.size()==0){
         filledPoints=fillPoly(PL);
+        filledPoints.insert(filledPoints.end(),PL.begin(),PL.end());
         poly->fillPoints=filledPoints;
     }else{
         filledPoints=poly->fillPoints;
     }
     point_int maxP={-1,-1},minP={-1,-1};
+    /*for(int n=0;n<filledPoints.size();n++){
+        mapD->setMap(filledPoints[n].x,filledPoints[n].y,100);
+    }*/
     for(int n=0;n<PL.size();n++){
-        //setMap(PL[n].x,PL[n].y,0,debugMap);
+        //mapD->setMap(PL[n].x,PL[n].y,100);
         if(PL[n].x>maxP.x) maxP.x=PL[n].x;
         if(PL[n].y>maxP.y) maxP.y=PL[n].y;
         if(PL[n].x<minP.x || minP.x==-1) minP.x=PL[n].x;
@@ -243,12 +250,11 @@ robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, point_i
         if(end.x<minP.x || minP.x==-1) minP.x=end.x;
         if(end.y<minP.y || minP.y==-1) minP.y=end.y;
     }
-    
     vector<vector<bool>> thinMap;
-    thinMap.resize(maxP.x-minP.x+2);
+    thinMap.resize(maxP.x-minP.x+3);
     for(int i1=0;i1<thinMap.size();i1++){
-        thinMap[i1].resize(maxP.y-minP.y+2);
-        for(int i2=0;i2<thinMap.size();i2++){
+        thinMap[i1].resize(maxP.y-minP.y+3);
+        for(int i2=0;i2<thinMap[i1].size();i2++){
             thinMap[i1][i2]=false;
         }
     }
@@ -256,7 +262,6 @@ robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, point_i
         thinMap[filledPoints[i].x-minP.x+1][filledPoints[i].y-minP.y+1]=true;
     start={start.x-minP.x+1,start.y-minP.y+1};
     thinMap[start.x][start.y]=true;
-
     if(end.x!=-1){
         end={end.x-minP.x+1,end.y-minP.y+1};
         thinMap[end.x][end.y]=true;
@@ -320,6 +325,12 @@ robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, point_i
             }
         }
     }
+    /*for(int x=0;x<thinMap.size();x++){
+        for(int y=0;y<thinMap[x].size();y++){
+            if(!thinMap[x][y]) continue;
+            mapD->setMap(x+minP.x-1,y+minP.y-1,1);
+        }
+    }*/
     //Get voronoi path
     point_int P2[]={{-1,0},{0,1},{1,0},{0,-1},{-1,1},{1,1},{1,-1},{-1,-1}};
     vector<robotPath> paths;
@@ -380,12 +391,10 @@ robotPath PolygonHandler::generateVoronoi(polygon* poly,MapHandler* map, point_i
         }
         curentPoint=newPoint;
     }
-    
     for(int i=0; i<paths[cPathIndex].size();i++){
         paths[cPathIndex][i].x+=minP.x-1;
         paths[cPathIndex][i].y+=minP.y-1;
     }
-
     return paths[cPathIndex];
 }
 
@@ -530,7 +539,6 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
         double bestScore=0, bestLength=0;
         bool first=true, changed=false;
         int sIndex=0, eIndex=0, decrisCount=0;
-        ROS_INFO("j1");
         while(true){
             if(sIndex+1<startS.size() && (eIndex+1>=endS.size() || 
                 dist(startS[sIndex+1]->position,endS[eIndex]->position)<
@@ -558,7 +566,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
                     decrisCount=0;
                 }else decrisCount+=1;
             }
-            double score=lenght+dw*DFunction(dist(test.get_center(),centerP)); //dist(test.get_center(),poly_list[pIndex].center);
+            double score=lenght+DFunction(dist(test.get_center(),centerP)); //dist(test.get_center(),poly_list[pIndex].center);
             if(first || score<bestScore){
                 if(openingList->checkForWall(test,map)) continue;
                 first=false;
@@ -566,7 +574,6 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
                 hbest=test;
             }
         }
-        ROS_INFO("j2");
         if(!openingList->checkForWall(best,map)){
             op->connect(true,best.connectedWallStart);
             op->connect(false,best.connectedWallEnd);
@@ -584,9 +591,9 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
     ROS_INFO("o4");
 }
 double PolygonHandler::DFunction(double length){
-    double minDistToCenter=6;
+    double minDistToCenter=4;
     double maxPenalty=1000;
-    if(length>minDistToCenter) return (length-minDistToCenter);
+    if(length>minDistToCenter) return dw*(length-minDistToCenter);
     
     return maxPenalty-(maxPenalty/minDistToCenter*length);
 }

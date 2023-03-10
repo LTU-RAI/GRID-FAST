@@ -13,10 +13,11 @@ MapHandler::MapHandler(){
 MapHandler::~MapHandler(){
 }
 
-void MapHandler::updateMap(vector<int> newMap,int newSizeX,int newSizeY,int newResulution,int newMapOffsetX=0,int newMapOffsetY=0){
-    MapHandler::resulution=resulution;
+void MapHandler::updateMap(vector<int> newMap,int newSizeX,int newSizeY,float newResulution,double newMapOffsetX,double newMapOffsetY,double newMapHight){
+    MapHandler::resulution=newResulution;
     MapHandler::mapOffsetX=newMapOffsetX;
     MapHandler::mapOffsetY=newMapOffsetY;
+    MapHandler::mapHight=newMapHight;
     MapHandler::mapSizeX=newSizeX;
     MapHandler::mapSizeY=newSizeY;
 
@@ -27,6 +28,7 @@ void MapHandler::updateMap(MapHandler* newMap){
     MapHandler::resulution=newMap->getMapResolution();
     MapHandler::mapOffsetX=newMap->getMapOffsetX();
     MapHandler::mapOffsetY=newMap->getMapOffsetY();
+    MapHandler::mapHight=newMap->getMapHight();
     MapHandler::mapSizeX=newMap->getMapSizeX();
     MapHandler::mapSizeY=newMap->getMapSizeY();
 
@@ -41,15 +43,19 @@ int MapHandler::getMapSizeY(){
     return MapHandler::mapSizeY;
 }
 
-int MapHandler::getMapOffsetX(){
+double MapHandler::getMapOffsetX(){
     return MapHandler::mapOffsetX;
 }
 
-int MapHandler::getMapOffsetY(){
+double MapHandler::getMapOffsetY(){
     return MapHandler::mapOffsetY;
 }
 
-int MapHandler::getMapResolution(){
+double MapHandler::getMapHight(){
+    return MapHandler::mapHight;
+}
+
+float MapHandler::getMapResolution(){
     return MapHandler::resulution;
 }
 
@@ -162,7 +168,7 @@ int MapHandler::checkForWallRay(point_int p1, point_int p2){
     point normdVop={((p2.x-p1.x)/(opLenght))*l,((p2.y-p1.y)/(opLenght))*l};
     for(int wallScan=0;wallScan<(int)(opLenght/l);wallScan++){
         point_int pp={p1.x+(int)(std::round(normdVop.x*wallScan)), p1.y+(int)(std::round(normdVop.y*wallScan))};
-        if(MapHandler::getMap(pp.x,pp.y)!=MAP_UNOCCUPIED){
+        if(MapHandler::getMap(pp.x,pp.y)==MAP_OCCUPIED){
             wallcount+=1;
         }
     }

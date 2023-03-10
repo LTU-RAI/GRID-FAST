@@ -2,13 +2,6 @@
 
 #include <fstream>
 
-//Map setings
-int mapSizeX=10;
-int mapSizeY=10;
-float resolution=0;
-float mapOffsetX=0;
-float mapOffsetY=0;
-float mapHight=0;
 //scan setings
 int minGroupSize=6;
 int minCoridorSize=2;

@@ -8,7 +8,7 @@ class MapTransform
 public:
     MapTransform();
     ~MapTransform();
-    void updateTransform(MapHandler*);
+    void updateTransform(MapHandler*, bool forceUpdate=false);
     int getMaptransformSizeY(int);
     int getMaptransformSizeX(int,int);
     mapTransformCell getMapTransformCell(int,int,int);

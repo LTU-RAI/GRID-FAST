@@ -8,13 +8,14 @@ class MapHandler
 public:
     MapHandler();
     ~MapHandler();
-    void updateMap(vector<int>,int,int,int,int,int);
+    void updateMap(vector<int>,int,int,float,double newMapOffsetX=0,double newMapOffsetY=0,double newMapHight=0);
     void updateMap(MapHandler*);
     int getMapSizeX();
     int getMapSizeY();
-    int getMapOffsetX();
-    int getMapOffsetY();
-    int getMapResolution();
+    double getMapOffsetX();
+    double getMapOffsetY();
+    double getMapHight();
+    float getMapResolution();
     int getMap(int,int);
     void setMap(int,int,int);
     int getMapUnsafe(int,int); //Do not have any protection for out of array access
@@ -23,10 +24,10 @@ public:
     int checkForWallRay(point_int p1, point_int p2);  
 private:
     vector<int> map;
-    int mapSizeX, mapSizeY, mapOffsetX, mapOffsetY, resulution;
+    int mapSizeX, mapSizeY;
+    double mapOffsetX, mapOffsetY, mapHight;
+    float resulution;
     point_int rotate_dir(point_int dir, bool cw);
-    void initializeMap(int,int);
-
 };
 
 

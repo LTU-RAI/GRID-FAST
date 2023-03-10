@@ -88,6 +88,7 @@ void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTrans
                 GapHandler::toBeFilterdPoints.push_back(scanPoints[i]);
                 GapHandler::toBeFilterdValues.push_back(value);
             }
+            
             scanPoints.clear();
             cfilter=0;
             cGroupeSize=0;

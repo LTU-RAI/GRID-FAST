@@ -718,15 +718,15 @@ void OpeningHandler::clear(){
 
 bool OpeningHandler::intersectOpenings(openingDetection *o1,openingDetection *o2){
     point_int p1Max, p1Min, p2Max,p2Min;
-    double l=2;
-    p1Max.x=std::max(o1->start().x,o1->end().x);
-    p1Max.y=std::max(o1->start().y,o1->end().y);
-    p1Min.x=std::min(o1->start().x,o1->end().x);
-    p1Min.y=std::min(o1->start().y,o1->end().y);
-    p2Max.x=std::max(o2->start().x,o2->end().x);
-    p2Max.y=std::max(o2->start().y,o2->end().y);
-    p2Min.x=std::min(o2->start().x,o2->end().x);
-    p2Min.y=std::min(o2->start().y,o2->end().y);
+    double l=1;
+    p1Max.x=std::max(o1->start().x,o1->end().x)+l;
+    p1Max.y=std::max(o1->start().y,o1->end().y)+l;
+    p1Min.x=std::min(o1->start().x,o1->end().x)-l;
+    p1Min.y=std::min(o1->start().y,o1->end().y)-l;
+    p2Max.x=std::max(o2->start().x,o2->end().x)+l;
+    p2Max.y=std::max(o2->start().y,o2->end().y)+l;
+    p2Min.x=std::min(o2->start().x,o2->end().x)-l;
+    p2Min.y=std::min(o2->start().y,o2->end().y)-l;
     
     if(!(p1Min.x<=p2Max.x && p1Max.x>=p2Min.x &&
          p1Min.y<=p2Max.y && p1Max.y>=p2Min.y)) return false;
