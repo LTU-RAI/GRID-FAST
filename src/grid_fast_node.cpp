@@ -42,7 +42,7 @@ class TopologyMapping{
     public:
         //setup
         TopologyMapping(){
-            std::string config_file_path= ros::package::getPath("topology_mapping")+"/config/settings.conf";
+            std::string config_file_path= ros::package::getPath("grid_fast")+"/config/settings.conf";
             load_config_file(config_file_path);
             subOccupancyMap= nh.subscribe("/map",1,&TopologyMapping::updateMap, this);
             pubTopoMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_filterd",5);

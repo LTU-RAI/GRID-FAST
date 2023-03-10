@@ -1,6 +1,6 @@
 <launch>
 
-     <node pkg="topology_mapping" type="topology_gap_analysis_node" name="topology_gap_analysis" output="screen"> 
+     <node pkg="grid_fast" type="grid_fast_node" name="grid_fast" output="screen"> 
      
      </node> 
 
