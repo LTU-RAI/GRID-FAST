@@ -35,8 +35,7 @@ class TopologyMapping{
         PolygonHandler* polygonList; 
 
         int oldNodCount=0;
-        vector<double> timeVector;
-        
+        vector<vector<double>> timeVector;
 
 
     public:
@@ -58,6 +57,7 @@ class TopologyMapping{
         
     //Load all maps, and map transforms into the memory
     void loadMemory(){
+        timeVector.resize(4);
         map = new MapHandler;
         mapDebug = new MapHandler;
         transform = new MapTransform;
@@ -94,34 +94,41 @@ class TopologyMapping{
         mapDebug->updateMap(bData,mapMsg.info.width,mapMsg.info.height,
                       mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y,mapMsg.info.origin.position.z);
         Time T;
-        ROS_INFO("g0");
+        //ROS_INFO("g0");
         gaps->clear();
         openingList->clear();
         polygonList->clear();
-        ROS_INFO("g1");
+        //ROS_INFO("g1");
         transform->updateTransform(map,true);
-        ROS_INFO("g2");
+        timeVector[0].insert(timeVector[0].begin(),T.get_since());
+        //ROS_INFO("g2");
         gaps->analysis(map,transform);
-        ROS_INFO("g3");
+        //ROS_INFO("g3");
         openingList->updateDetections(map,transform,gaps);
-        ROS_INFO("g4");
+        //ROS_INFO("g4");
         openingList->update(map);
-        ROS_INFO("g5");
+        //ROS_INFO("g5");
         polygonList->updateIntersections(openingList,map);
-        ROS_INFO("g6");
+        //ROS_INFO("g6");
         polygonList->generatePolygonArea(openingList);
-        ROS_INFO("g7");
+        timeVector[2].insert(timeVector[2].begin(),T.get_since());
+        ///ROS_INFO("g7");
         polygonList->generateRobotPath(openingList,map,mapDebug);
-        ROS_INFO("g8");
+        //ROS_INFO("g8");
         
-        timeVector.insert(timeVector.begin(),T.get_since());
-        if(timeVector.size()>10) timeVector.pop_back();
-        double Td=0;
-        for(int i=0;i<timeVector.size();i++){
-            Td+=timeVector[i];
+        timeVector[3].insert(timeVector[3].begin(),T.get_since());
+        vector<double> Td;
+        Td.resize(timeVector.size());
+        for(int i1=0;i1<timeVector.size();i1++){
+            Td[i1]=0;
+            if(timeVector[i1].size()>10) timeVector[i1].pop_back();
+            for(int i2=0;i2<timeVector[i1].size();i2++){
+                Td[i1]+=timeVector[i1][i2];
+            }
+            Td[i1]=Td[i1]/timeVector[i1].size();
         }
-        Td=Td/timeVector.size();
-        ROS_INFO("Time: %f", Td);
+        
+        ROS_INFO("Time: %f, %f", Td[2], Td[3]);
         pubMap();
     }
     
@@ -255,7 +262,6 @@ class TopologyMapping{
                 robotPathList.push_back(p->pathList[pathI]);
             }
         }
-        ROS_INFO("j3");
         visualization_msgs::MarkerArray msgRobotPath;
         msgRobotPath.markers.resize(1+robotPathList.size());
         msgRobotPath.markers[0].header.frame_id = "map";
