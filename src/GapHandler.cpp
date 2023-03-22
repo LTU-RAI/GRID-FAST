@@ -20,15 +20,17 @@ void GapHandler::analysis(MapHandler* map,MapTransform* transform){
     for(int angleIndex=0;angleIndex<numberOfDir;angleIndex++){
         GapHandler::analysisAtAngle(angleIndex,map,transform);
     }
-
-    //Apply filter
-    for(int index=0;index<GapHandler::toBeFilterdPoints.size();index++){
-        if(map->getMapUnsafe(GapHandler::toBeFilterdPoints[index].x,
-                             GapHandler::toBeFilterdPoints[index].y)==MAP_OCCUPIED) continue;
-        map->setMap(GapHandler::toBeFilterdPoints[index].x,
-                    GapHandler::toBeFilterdPoints[index].y,
-                    GapHandler::toBeFilterdValues[index]);
+    /*std::vector<std::thread> threads;
+    for (int angleIndex = 0; angleIndex < numberOfDir; angleIndex++) {
+        threads.push_back(std::thread(&GapHandler::analysisAtAngle, this, angleIndex, map, transform));
     }
+
+    for (std::thread &t : threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }*/
+
     for(int angleIndex=0;angleIndex<numberOfDir;angleIndex++){
         for(int row=0;row<GapHandler::getSizeRows(angleIndex);row++){
             for(int index=0;index<GapHandler::getSizeGaps(angleIndex,row);index++){
@@ -39,6 +41,14 @@ void GapHandler::analysis(MapHandler* map,MapTransform* transform){
         }
     }
 
+    //Apply filter
+    for(int index=0;index<GapHandler::toBeFilterdPoints.size();index++){
+        if(map->getMapUnsafe(GapHandler::toBeFilterdPoints[index].x,
+                             GapHandler::toBeFilterdPoints[index].y)==MAP_OCCUPIED) continue;
+        map->setMap(GapHandler::toBeFilterdPoints[index].x,
+                    GapHandler::toBeFilterdPoints[index].y,
+                    GapHandler::toBeFilterdValues[index]);
+    }
 }
 
 void GapHandler::analysisAtAngle(int angleIndex, MapHandler* map, MapTransform* transform){
@@ -83,11 +93,12 @@ void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTrans
                 }else{
                     value=MAP_UNKNOWN;
                 }
+                for(int i=0; i<scanPoints.size()-cfilter;i++){
+                    GapHandler::toBeFilterdPoints.push_back(scanPoints[i]);
+                    GapHandler::toBeFilterdValues.push_back(value);
+                }
             }
-            for(int i=0; i<scanPoints.size()-cfilter;i++){
-                GapHandler::toBeFilterdPoints.push_back(scanPoints[i]);
-                GapHandler::toBeFilterdValues.push_back(value);
-            }
+            
             
             scanPoints.clear();
             cfilter=0;
@@ -106,8 +117,7 @@ void GapHandler::fillGapAtMap(MapHandler* map,MapTransform* transform,int angleI
             value=MAP_UNKNOWN;
         }
     }
-    for(int x=gap->start;x<gap->end;x++){
-        //if(gap->traversable) return; //Tempory untill bug is solved 
+    for(int x=gap->start;x<=gap->end;x++){
         GapHandler::toBeFilterdPoints.push_back(transform->getMapIndexTransform(x,gap->row,angleIndex));
         GapHandler::toBeFilterdValues.push_back(value);
     }

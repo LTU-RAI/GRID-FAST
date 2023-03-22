@@ -48,4 +48,5 @@ private:
     void fixOverlap(openingDetection*, openingDetection*,MapHandler*);
     void swapEnds(opening*,bool,opening*,bool);
     vector<point_int> generateOpeningPoints(openingDetection *o);
+    vector<point_int> generateOpeningPoints(opening *o);
 };

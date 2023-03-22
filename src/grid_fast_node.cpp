@@ -1,8 +1,7 @@
 #include "Utility.hh"      
 #include "MapHandler.hh"
 #include "MapTransform.hh"
-#include "GapHandler.hh"
-#include "MapFilter.hh"                  
+#include "GapHandler.hh"                
 #include "OpeningHandler.hh"     
 #include "PolygonHandler.hh"   
 
@@ -21,6 +20,7 @@ class TopologyMapping{
         ros::Publisher pubTopoPoly;
         ros::Publisher pubTopometricMap;
         ros::Publisher pubRobotPath;
+        ros::Publisher pubPolyDebug;
         ros::Publisher pubMarkDel;
 
         //msg
@@ -30,7 +30,6 @@ class TopologyMapping{
         MapHandler* map, *mapDebug;
         MapTransform* transform;
         GapHandler* gaps;
-        MapFilter* filter;
         OpeningHandler* openingList;
         PolygonHandler* polygonList; 
 
@@ -50,6 +49,7 @@ class TopologyMapping{
             pubMapDebug=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_debug",5);
             pubTopoPoly_debug=nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly_opening",5);
             pubRobotPath=nh.advertise<visualization_msgs::MarkerArray>("/topology_robot_path",5);
+            pubPolyDebug=nh.advertise<visualization_msgs::MarkerArray>("/polyDebyg",5);
             pubTopoPoly=nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly",5);
             pubTopometricMap=nh.advertise<grid_fast::topometricMap>("/topometricMap",5);
             loadMemory();
@@ -62,7 +62,6 @@ class TopologyMapping{
         mapDebug = new MapHandler;
         transform = new MapTransform;
         gaps = new GapHandler;
-        filter = new MapFilter;
         openingList = new OpeningHandler;
         polygonList = new PolygonHandler;
 
@@ -99,7 +98,7 @@ class TopologyMapping{
         openingList->clear();
         polygonList->clear();
         //ROS_INFO("g1");
-        transform->updateTransform(map,true);
+        transform->updateTransform(map,forceUpdate);
         timeVector[0].insert(timeVector[0].begin(),T.get_since());
         //ROS_INFO("g2");
         gaps->analysis(map,transform);
@@ -109,10 +108,12 @@ class TopologyMapping{
         openingList->update(map);
         //ROS_INFO("g5");
         polygonList->updateIntersections(openingList,map);
+        timeVector[1].insert(timeVector[1].begin(),T.get_since());
+        polygonList->optimize(openingList,map);
         //ROS_INFO("g6");
         polygonList->generatePolygonArea(openingList);
         timeVector[2].insert(timeVector[2].begin(),T.get_since());
-        ///ROS_INFO("g7");
+        //ROS_INFO("g7");
         polygonList->generateRobotPath(openingList,map,mapDebug);
         //ROS_INFO("g8");
         
@@ -128,7 +129,7 @@ class TopologyMapping{
             Td[i1]=Td[i1]/timeVector[i1].size();
         }
         
-        ROS_INFO("Time: %f, %f", Td[2], Td[3]);
+        ROS_INFO("Time: %f, %f, %f, %f", Td[0], Td[1] ,Td[2], Td[3]);
         pubMap();
     }
     
@@ -249,10 +250,10 @@ class TopologyMapping{
             if(p.label==30 || p.label==41 || p.label==76 || p.label==52) c++;
             pubPolyArray.likelihood[i]=1;
         }
-        if(c!=oldNodCount){
+        //if(c!=oldNodCount){
             oldNodCount=c;
             ROS_INFO("Node count: %i",c);
-        }
+        //}
         pubTopoPoly.publish(pubPolyArray);
         
         vector<robotPath> robotPathList;
@@ -299,6 +300,40 @@ class TopologyMapping{
         }
         
         pubRobotPath.publish(msgRobotPath);
+
+        visualization_msgs::MarkerArray pDebugg;
+        pDebugg.markers.resize(1+polygonList->size());
+        pDebugg.markers[0].header.frame_id = "map";
+        pDebugg.markers[0].header.stamp = ros::Time::now();
+        pDebugg.markers[0].action=pDebugg.markers[0].DELETEALL;
+        for(int i=1; i<polygonList->size()+1;i++){
+            polygon* p=polygonList->get(i-1);
+            pDebugg.markers[i].header.frame_id = "map";
+            pDebugg.markers[i].header.stamp = ros::Time::now();
+            pDebugg.markers[i].ns="pDebugg";
+            pDebugg.markers[i].id=i;
+            pDebugg.markers[i].type=pDebugg.markers[i].TEXT_VIEW_FACING;
+            pDebugg.markers[i].action=pDebugg.markers[i].ADD;
+
+            pDebugg.markers[i].pose.position.x=(p->center.x-MapOrigenX)*resolution;
+            pDebugg.markers[i].pose.position.y=(p->center.y-MapOrigenY)*resolution;
+            pDebugg.markers[i].pose.position.z=map->getMapHight()+0.05;
+            pDebugg.markers[i].pose.orientation.w=1.0;
+            pDebugg.markers[i].pose.orientation.x=0.0;
+            pDebugg.markers[i].pose.orientation.y=0.0;
+            pDebugg.markers[i].pose.orientation.z=0.0;
+            pDebugg.markers[i].scale.x=0.1;
+            pDebugg.markers[i].scale.y=0.1;
+            pDebugg.markers[i].scale.z=0.5;
+            pDebugg.markers[i].color.a=1.0;
+            pDebugg.markers[i].color.r=0.0;
+            pDebugg.markers[i].color.b=0.0;
+            pDebugg.markers[i].color.g=0.0;
+            pDebugg.markers[i].lifetime=ros::Duration(0);
+            pDebugg.markers[i].text=std::to_string(i-1);
+        }
+        
+        pubPolyDebug.publish(pDebugg);
         
         /*topoMapMsg.header.stamp = ros::Time::now();
         topometricMapMsg.header=topoMapMsg.header;

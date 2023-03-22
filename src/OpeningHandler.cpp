@@ -189,6 +189,7 @@ void OpeningHandler::getAndFilterWall(MapHandler* map, point_int start, vector<p
     point_int firstEmpty={-1,-1};
     vector<opening> opToAdd;
     vector<wallCell*> cellsToEmty;
+    vector<point_int> fronterToRemove;
     vector<int> detectionsToRemove;
     int occupideWall=0;
     for(int s=0;s<2000000;s++){
@@ -218,16 +219,22 @@ void OpeningHandler::getAndFilterWall(MapHandler* map, point_int start, vector<p
                 newOp.start=cellsToEmty.back()->position;
                 newOp.connectedWallStart=cellsToEmty.back();
                 opToAdd.push_back(newOp);
+            }else{
+                for(int i=0;i<fronterToRemove.size();i++){
+                    map->setMap(fronterToRemove[i].x,fronterToRemove[i].y,MAP_OCCUPIED);
+                }
             }
             firstEmpty={-1,-1};
             cellsToEmty.clear();
             detectionsToRemove.clear();
+            fronterToRemove.clear();
         }
         
 
         wallPoints.push_back(step.end);
         wallCell* wp=newWall->push_back(w);
         if(firstEmpty.x!=-1){
+            fronterToRemove.insert(fronterToRemove.end(),step.fronterPositions.begin(),step.fronterPositions.end());
             cellsToEmty.push_back(wp);
         }
         for(int i=0;i<detectionMap[step.end.x][step.end.y].size();i++){
@@ -381,11 +388,18 @@ void OpeningHandler::update(MapHandler* map){
         }
     }
     for(int i=0;i<OpeningHandler::size();i++){
-        if(OpeningHandler::openingList[i]->label!=1) continue;
-        opening newOp=OpeningHandler::openingList[i]->getOpening();
-        newOp.flip();
-        newOp.label=2;
-        OpeningHandler::add(newOp);
+        if(OpeningHandler::openingList[i]->label==1){
+            opening newOp=OpeningHandler::openingList[i]->getOpening();
+            newOp.flip();
+            newOp.label=2;
+            OpeningHandler::add(newOp);
+        }else if(OpeningHandler::openingList[i]->label==4){
+            opening newOp=OpeningHandler::openingList[i]->getOpening();
+            newOp.flip();
+            newOp.label=5;
+            OpeningHandler::add(newOp);
+        }
+        
     }
 }
 
@@ -493,14 +507,14 @@ point_int OpeningHandler::findIntersectionPoint(opening o1, opening o2) {
     return p_int;
 }
 
-bool OpeningHandler::check_unnecessary_openings(opening o, MapHandler* map){
+/*bool OpeningHandler::check_unnecessary_openings(opening o, MapHandler* map){
     if(o.connectedWallEnd!=o.connectedWallStart) return false;
 
     int maxSteps=(dist(o.start,o.end)*openingRemoveScale);
     if(double(o.connectedWallEnd->parent->getDistans(o.connectedWallEnd->index,o.connectedWallStart->index))<maxSteps) return true;
 
     return false;
-}
+}*/
 
 /*void OpeningHandler::fitNonFixedOpenings(MapHandler* map){
     for(int index=0;index<OpeningHandler::size();index++){
@@ -626,7 +640,13 @@ int OpeningHandler::checkForOpenings(wallCell* cell){
 }
 
 bool OpeningHandler::checkForWall(opening o, MapHandler* map){
-    for(int sids=0;sids<2;sids++){
+    vector<point_int> p=OpeningHandler::generateOpeningPoints(&o);
+    for(int i=0;i<p.size();i++){
+        if(map->getMap(p[i].x,p[i].y)==MAP_OCCUPIED) return true;
+    }
+    return false;
+    
+    /*for(int sids=0;sids<2;sids++){
         point_int dir={1,0};
         point_int testP=sids?o.end:o.start;
         point_int endP=sids?o.start:o.end;
@@ -640,14 +660,16 @@ bool OpeningHandler::checkForWall(opening o, MapHandler* map){
             }
             dir={-dir.y,dir.x};
         }
-    }
+    }*/
     
-    int wallcount=map->checkForWallRay(o.start,o.end);
+
+
+    /*int wallcount=map->checkForWallRay(o.start,o.end);
     if(wallcount<1){
         return false;
     }else{
         return true;
-    }
+    }*/
 }
 
 int OpeningHandler::size(){
@@ -675,6 +697,7 @@ openingDetection* OpeningHandler::add(opening newOp){
     opToAdd->label=newOp.label;
     opToAdd->connect(true,newOp.connectedWallStart);
     opToAdd->connect(false,newOp.connectedWallEnd);
+    opToAdd->occupiedPoints=newOp.occupiedPoints;
     OpeningHandler::openingList.push_back(opToAdd);
     return opToAdd;
 }
@@ -735,14 +758,14 @@ bool OpeningHandler::intersectOpenings(openingDetection *o1,openingDetection *o2
     if(o1->start()==o2->end()) return true;
     if(o1->end()==o2->start()) return true;
     
-    double l1 = dist(o1->start(),o1->end());
+    /*double l1 = dist(o1->start(),o1->end());
     double l2 = dist(o2->start(),o2->end());
     point n1={((o1->end().x-o1->start().x)/l1)*l, ((o1->end().y-o1->start().y)/l1)*l};
     point n2={((o2->end().x-o2->start().x)/l2)*l, ((o2->end().y-o2->start().y)/l2)*l};
     point A={o1->start().x-n1.x,o1->start().y-n1.y}, B={o1->end().x+n1.x,o1->end().y+n1.y};
     point C={o2->start().x-n2.x,o2->start().y-n2.y}, D={o2->end().x+n2.x,o2->end().y+n2.y}; 
     return OpeningHandler::ccw(A,C,D)!=OpeningHandler::ccw(B,C,D) &&
-           OpeningHandler::ccw(A,B,C)!=OpeningHandler::ccw(A,B,D);
+           OpeningHandler::ccw(A,B,C)!=OpeningHandler::ccw(A,B,D);*/
            
 
     vector<point_int> p1,p2;
@@ -941,6 +964,25 @@ vector<point_int> OpeningHandler::generateOpeningPoints(openingDetection *o){
     }
 
     p=drawLine(o->start(),o->end());
+    o->occupiedPoints=p;
+        
+    return p;
+}
+
+vector<point_int> OpeningHandler::generateOpeningPoints(opening *o){
+    vector<point_int> p;
+    if(o->occupiedPoints.size()!=0 && 
+    (o->start==o->occupiedPoints[0] && 
+    o->end==o->occupiedPoints[o->occupiedPoints.size()-1]||
+    o->end==o->occupiedPoints[0] && 
+    o->start==o->occupiedPoints[o->occupiedPoints.size()-1])){
+        
+        p=o->occupiedPoints;
+    
+        return p;
+    }
+
+    p=drawLine(o->start,o->end);
     o->occupiedPoints=p;
         
     return p;

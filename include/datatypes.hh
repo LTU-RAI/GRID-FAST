@@ -94,6 +94,7 @@ struct opening{
     point_int start;
     point_int end;
     int sideToMove=3;//1:start,2:end,3:none
+    vector<point_int> occupiedPoints;
     int angle;
     bool start_is_outside;
     int label=1;
@@ -215,6 +216,7 @@ struct polygon{
 struct ant_data{
     point_int dir={0,0};
     point_int end;
+    vector<point_int> fronterPositions;
     bool emty_cell=false;
 };
 

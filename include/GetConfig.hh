@@ -2,30 +2,26 @@
 
 #include <fstream>
 
-//scan setings
+//Scan Settings
 int minGroupSize=6;
 int minCoridorSize=2;
 int cfilterSize=1;
 int objectFilterMaxStep=40;
-double openingRemoveScale=1.4;
 int numberOfDir=4;
-int extendDevider=2;
-double dw=0.8;
-int searchLenghtFitcoridor=60;
-int searchLenghtFixOverlap=30;
-bool removeOpeningsFirst=true;
+bool forceUpdate=false;
 
-//ant para
-int searchLenghtClean=10;
+//Opening Settings
+double dw=0.8;
 int searchLenghtOverlap=10;
-int sercheLenthAnt=600;
-int sercheLenthAntConect=2000;
-int sercheLenthAntConectPath=2000;
-int maxAntGap=4;
+
+//Polygon Settings
+int optimizationSteps=0;
+double minDistToCenter=0;
+double maxPenalty=0;
 int polygonRez=4;
-int polygonRezPath=10;
+
+//Robot Path Settings
 int voronoiRez=6;
-int minimumSercheLenght=5;
 
 //Debugging
 bool show_removed_openings=false;
@@ -59,40 +55,24 @@ void load_config_file(const std::string &file_path) {
             cfilterSize = std::stoi(value);
         }else if (key == "objectFilterMaxStep") {
             objectFilterMaxStep = std::stoi(value);
-        }else if (key == "openingRemoveScale") {
-            openingRemoveScale = std::stod(value);
         }else if (key == "numberOfDir") {
             numberOfDir = std::stoi(value);
-        }else if (key == "extendDevider") {
-            extendDevider = std::stoi(value);
+        }else if (key == "forceUpdate") {
+            forceUpdate = value=="true"||value=="True"||value=="1";
         }else if (key == "dw") {
             dw = std::stod(value);
-        }else if (key == "searchLenghtFitcoridor") {
-            searchLenghtFitcoridor = std::stoi(value);
-        }else if (key == "searchLenghtFixOverlap") {
-            searchLenghtFixOverlap = std::stoi(value);
-        }else if (key == "removeOpeningsFirst") {
-            removeOpeningsFirst = value=="true"||value=="True"||value=="1";
-        }else if (key == "searchLenghtClean") {
-            searchLenghtClean = std::stoi(value);
         }else if (key == "searchLenghtOverlap") {
             searchLenghtOverlap = std::stoi(value);
-        }else if (key == "sercheLenthAnt") {
-            sercheLenthAnt = std::stoi(value);
-        }else if (key == "sercheLenthAntConect") {
-            sercheLenthAntConect = std::stoi(value);
-        }else if (key == "sercheLenthAntConectPath") {
-            sercheLenthAntConectPath = std::stoi(value);
-        }else if (key == "maxAntGap") {
-            maxAntGap = std::stoi(value);
+        }else if (key == "optimizationSteps") {
+            optimizationSteps = std::stoi(value);
+        }else if (key == "minDistToCenter") {
+            minDistToCenter = std::stod(value);
+        }else if (key == "maxPenalty") {
+            maxPenalty = std::stod(value);
         }else if (key == "polygonRez") {
             polygonRez = std::stoi(value);
-        }else if (key == "polygonRezPath") {
-            polygonRezPath = std::stoi(value);
         }else if (key == "voronoiRez") {
             voronoiRez = std::stoi(value);
-        }else if (key == "minimumSercheLenght") {
-            minimumSercheLenght = std::stoi(value);
         }else if (key == "show_removed_openings") {
             show_removed_openings = value=="true"||value=="True"||value=="1";
         }

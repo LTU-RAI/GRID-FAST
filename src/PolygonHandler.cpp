@@ -14,6 +14,7 @@ void PolygonHandler::updateIntersections(OpeningHandler* openingList, MapHandler
         openingDetection* op=openingList->get(opIndex);
         if(op->label>10) continue;
         if(op->parent!=NULL) continue;
+        if(op->label==5) continue;
         PolygonHandler::creatIntersection(openingList,op);
     }
     for(int opIndex=0;opIndex<openingList->size();opIndex++){
@@ -22,12 +23,17 @@ void PolygonHandler::updateIntersections(OpeningHandler* openingList, MapHandler
         openingList->disable(op,op->label);
         opIndex--;
     }
-    for(int optTimes=0;optTimes<2;optTimes++){
+}
+
+void PolygonHandler::optimize(OpeningHandler* openingList, MapHandler* map){
+    for(int optTimes=0;optTimes<1;optTimes++){
         for(int pIndex=0;pIndex<PolygonHandler::polygonList.size();pIndex++){
-            PolygonHandler::optimizeIntersection(PolygonHandler::polygonList[pIndex],openingList,map);
+            if(PolygonHandler::polygonList[pIndex]->path) continue;
+            //if(pIndex==75) PolygonHandler::polygonList[pIndex]->label=76;
+            if(PolygonHandler::optimizeIntersection(PolygonHandler::polygonList[pIndex],openingList,map)) continue;
+            pIndex--;
         }
     }
-
     PolygonHandler::getPathways(openingList);
 }
 
@@ -88,6 +94,7 @@ void PolygonHandler::creatPathway(OpeningHandler* openingList,openingDetection* 
     if(w.connectedtOpeningStart[0]!=targetOp){
         newPoly.openings.push_back(w.connectedtOpeningStart[0]);
         newPoly.label=64;
+        if(newPoly.openings[0]->label== 5|| newPoly.openings[1]->label== 5) newPoly.label=52;
     }else{
         bool test=false;
         for(int i=0;i<wList.size();i++){
@@ -441,7 +448,7 @@ void PolygonHandler::clear(){
     PolygonHandler::polygonList.clear();
 }
 
-void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingList, MapHandler* map){
+bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingList, MapHandler* map){
     //ROS_INFO("o0");
     vector<vector<wallCell*>> walls;
     vector<int> startIndex;
@@ -456,34 +463,25 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
         vector<wallCell*> currentWall;
         vector<wallCell*> o1back;
         //ROS_INFO("t2");
-        wallCell w=openingList->getNextOpening(targetOp1,true,2,false,true,true,&o1back);
-        int loopfrom=o1back.size()-1;
-        if(w.connectedtOpeningEnd.size()!=0){
-            if(w.connectedtOpeningEnd[0]==targetOp1) loopfrom=loopfrom/2;
+        wallCell w1=openingList->getNextOpening(targetOp1,true,2,false,true,false,&o1back);
+        if(w1.connectedtOpeningEnd.size()==0){
+            poly->label=76;
+            return true;
         }
-        //ROS_INFO("t3");
-        for(int i=loopfrom;i>=0;i--){
-            currentWall.push_back(o1back[i]);
-        }
-        //ROS_INFO("t3.5");
-        vector<wallCell*> o1ToO2;
-        openingList->getPointsBetweenOpenings(targetOp1,true,targetOp2,false,&o1ToO2);
-        //ROS_INFO("%i, %i",targetOp1->getConnection(true)->index,targetOp2->getConnection(false)->index);
-        if(o1ToO2.size()==1){
-            PolygonHandler::removeSideFromPolygon(poly,targetOp1,openingList);
-            PolygonHandler::removeSideFromPolygon(poly,targetOp2,openingList); 
-            return;
-        }
-        currentWall.insert(currentWall.end(),o1ToO2.begin()+1,o1ToO2.end()-1);
-        //ROS_INFO("t4");
+        int loopfrom=0;
+        if(w1.connectedtOpeningEnd[0]==targetOp1) loopfrom=o1back.size()/2;
+
         vector<wallCell*> o2front;
-        w=openingList->getNextOpening(targetOp2,false,1,true,true,true,&o2front);
-        int loopto=o2front.size();
-        if(w.connectedtOpeningStart.size()!=0){
-            if(w.connectedtOpeningStart[0]==targetOp2) loopto=loopto/2;
+        wallCell w2=openingList->getNextOpening(targetOp2,false,1,true,true,false,&o2front);
+        if(w2.connectedtOpeningStart.size()==0){
+            poly->label=76;
+            return true;
         }
-        //ROS_INFO("t5");
-        if(o2front.size()!=0) currentWall.insert(currentWall.end(),o2front.begin(),o2front.begin()+loopto);
+        int loopto=0;
+        if(w2.connectedtOpeningStart[0]==targetOp2) loopto=o2front.size()/2;
+        vector<wallCell*> p;
+        openingList->getPointsBetweenOpenings(w1.connectedtOpeningEnd[0],false,w2.connectedtOpeningStart[0],true,&p);
+        currentWall.insert(currentWall.end(),p.begin()+loopfrom,p.end()-loopto);
         walls[sideIndex]=currentWall;
         //ROS_INFO("t6");
     }
@@ -492,23 +490,36 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
     vector<vector<wallCell*>> startPoints,endPoints;
     startPoints.resize(walls.size());
     endPoints.resize(walls.size());
+    for(int times=0;times<optimizationSteps;times++){
+    int bestINdex;
     for(int sideIndex=0;sideIndex<poly->openings.size();sideIndex++){
         openingDetection* targetOp1=poly->openings[sideIndex];
         openingDetection* targetOp2=poly->openings[(sideIndex+1)%poly->openings.size()];
         double bestScore=-1;
-        int bestINdex=0;
+        bestINdex=0;
+        if(poly->label==76){
+                    ROS_INFO("-------");
+                }
         for(int wallIndex=0;wallIndex<walls[sideIndex].size()-1;wallIndex++){
             double d1=dist(walls[sideIndex][wallIndex]->position,targetOp1->end());
             double d2=dist(walls[sideIndex][wallIndex+1]->position,targetOp2->start());
             double score=d1*d1+d2*d2;
+            if(poly->label==76){
+                //ROS_INFO("%f,%f,%f",d1,d2,score);
+            }
             if(bestScore<0||score<bestScore){
+                if(poly->label==76){
+                    //ROS_INFO("newBest");
+                }
                 bestScore=score;
                 bestINdex=wallIndex;
             }
         }
+        
         startIndex.push_back(bestINdex);
         targetOp1->connect(true,walls[sideIndex][bestINdex]);
         targetOp2->connect(false,walls[sideIndex][bestINdex+1]);
+        if(times!=optimizationSteps-1)continue;
         centerP.x+=walls[sideIndex][bestINdex]->position.x+walls[sideIndex][bestINdex+1]->position.x;
         centerP.y+=walls[sideIndex][bestINdex]->position.y+walls[sideIndex][bestINdex+1]->position.y;
         startPoints[sideIndex].resize(bestINdex+1);
@@ -521,23 +532,21 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             endPoints[(sideIndex+1)%poly->openings.size()][i]=walls[sideIndex][bestINdex+1+i];
         }
 
-    }
+    }}
     //ROS_INFO("o3");
     centerP.x=centerP.x/(poly->openings.size()*2);
     centerP.y=centerP.y/(poly->openings.size()*2);
-    int listIndex=0;
     for(int sideIndex=0;sideIndex<poly->openings.size();sideIndex++){
         openingDetection* op=poly->openings[sideIndex];
         vector<wallCell*> startS,endS;
-        startS=startPoints[listIndex];
-        endS=endPoints[listIndex];
-        listIndex++;
+        startS=startPoints[sideIndex];
+        endS=endPoints[sideIndex];
         opening test, hbest, best;
         test=op->getOpening();
         best=test;
         hbest=test;
-        double bestScore=0, bestLength=0;
-        bool first=true, changed=false;
+        double bestScore=-1, prevLength=dist(test.start,test.end);
+        bool changed=false;
         int sIndex=0, eIndex=0, decrisCount=0;
         while(true){
             if(sIndex+1<startS.size() && (eIndex+1>=endS.size() || 
@@ -548,6 +557,7 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
                 eIndex+=1;
             }else{
                 best=hbest;
+                if(dist(best.start,best.end)>=minGroupSize/2)
                 changed=true;
                 break;
             }
@@ -556,43 +566,43 @@ void PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             test.end=endS[eIndex]->position;
             test.connectedWallEnd=endS[eIndex];
             double lenght=dist(test.start,test.end);
-            if(lenght<minGroupSize) break;
-            if(first || lenght<bestLength){
-                bestLength=lenght;
+            if(lenght<minGroupSize/2) break;
+            if(lenght<prevLength){
+                prevLength=lenght;
+                decrisCount=0;
             }else{
-                if(decrisCount>=6){
+                if(decrisCount>=6 && bestScore>0){
                     best=hbest;
                     changed=true;
                     decrisCount=0;
                 }else decrisCount+=1;
             }
-            double score=lenght+DFunction(dist(test.get_center(),centerP)); //dist(test.get_center(),poly_list[pIndex].center);
-            if(first || score<bestScore){
-                if(openingList->checkForWall(test,map)) continue;
-                first=false;
-                bestScore=score;
-                hbest=test;
+            double score=lenght+DFunction(dist(test.get_center(),centerP));
+            if(bestScore<0 || score<bestScore){
+                if(!openingList->checkForWall(test,map)){
+                    bestScore=score;
+                    hbest=test;
+                }
             }
         }
-        if(!openingList->checkForWall(best,map)){
-            op->connect(true,best.connectedWallStart);
-            op->connect(false,best.connectedWallEnd);
-        }
+
+        op->connect(true,best.connectedWallStart);
+        op->connect(false,best.connectedWallEnd);
         if(!changed){
             if(poly->openings.size()<=3){
                 PolygonHandler::remove(poly,openingList);
-                break;
+                return false;
             }else{
                 PolygonHandler::removeSideFromPolygon(poly,op,openingList);
+                startPoints.erase(startPoints.begin()+sideIndex);
+                endPoints.erase(endPoints.begin()+sideIndex);
                 sideIndex-=1;
             }
         }
     }
-    //ROS_INFO("o4");
+    return true;
 }
 double PolygonHandler::DFunction(double length){
-    double minDistToCenter=4;
-    double maxPenalty=1000;
     if(length>minDistToCenter) return dw*(length-minDistToCenter);
     
     return maxPenalty-(maxPenalty/minDistToCenter*length);

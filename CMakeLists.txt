@@ -3,6 +3,9 @@ project(grid_fast)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 set(CMAKE_CXX_STANDARD 14)
+#set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -159,9 +162,6 @@ target_link_libraries(map_transform_class ${catkin_LIBRARIES})
 add_library(gap_handler_class src/GapHandler.cpp)
 add_dependencies(gap_handler_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(gap_handler_class ${catkin_LIBRARIES})
-add_library(map_filter_class src/MapFilter.cpp)
-add_dependencies(map_filter_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(map_filter_class ${catkin_LIBRARIES})
 add_library(opening_handler_class src/OpeningHandler.cpp)
 add_dependencies(opening_handler_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(opening_handler_class ${catkin_LIBRARIES})
@@ -176,8 +176,7 @@ target_link_libraries(
   grid_fast_node 
   map_handler_class 
   map_transform_class 
-  gap_handler_class 
-  map_filter_class 
+  gap_handler_class  
   opening_handler_class 
   polygon_handler_class 
   ${catkin_LIBRARIES}

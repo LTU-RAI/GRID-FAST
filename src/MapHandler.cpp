@@ -134,7 +134,8 @@ ant_data MapHandler::ant_step(ant_data oldStep, bool clockwise=true){
                     
                 if(MapHandler::getMap(step.end.x+dir.x,step.end.y+dir.y)==MAP_UNKNOWN){
                     step.emty_cell=true;
-                    break;
+                    point_int p={step.end.x+dir.x,step.end.y+dir.y};
+                    step.fronterPositions.push_back(p);
                 }
                 dir=rotate_dir(dir,clockwise);
             }
