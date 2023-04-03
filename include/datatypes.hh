@@ -174,6 +174,7 @@ public:
         op.connectedWallStart=startPoint;
         op.connectedWallEnd=endPoint;
         op.label=label;
+        op.occupiedPoints=occupiedPoints;
         return op;
     }
     point_int getCenter(){

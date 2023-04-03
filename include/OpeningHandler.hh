@@ -22,7 +22,7 @@ public:
     void remove(openingDetection*);
     void disable(openingDetection*,int);
     void clear();
-    bool checkForWall(opening o, MapHandler*);
+    bool checkForWall(opening *o, MapHandler*);
     wallCell getNextOpening(openingDetection*,bool,int,bool,bool checkFirst=false,bool stopAtEmpty=false,vector<wallCell*>* pointList=NULL);
     vector<point_int> getPointsBetweenOpenings(openingDetection*,bool,openingDetection*,bool, vector<wallCell*>* wallPoints=NULL); 
 private:

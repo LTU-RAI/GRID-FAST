@@ -51,7 +51,7 @@ void OpeningHandler::checkForDetection(int angleIndex, int row, int index, MapHa
                 newOp.end={connectedGaps[i]->start,connectedGaps[i]->row};
                 if(i==0){
                     newOp.sideToMove=2;
-                }else if(i==connectedGaps.size()){
+                }else if(i==connectedGaps.size()-1){
                     newOp.sideToMove=1;
                 }
             }else{
@@ -296,7 +296,7 @@ void OpeningHandler::update(MapHandler* map){
     while(dList.size()!=0){
         vector<int> ignorlist;
         if(!OpeningHandler::findOpenings(map,0,&dList,&ignorlist)){
-            if(!OpeningHandler::checkForWall(dList[0],map) &&
+            if(!OpeningHandler::checkForWall(&dList[0],map) &&
                !dList[0].connectedWallStart->emptyNeighbour &&
                !dList[0].connectedWallEnd->emptyNeighbour)
                 OpeningHandler::add(dList[0]);
@@ -355,9 +355,11 @@ void OpeningHandler::update(MapHandler* map){
     //Fix overlap
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
+        if(OpeningHandler::openingList[i]->label==4) continue;
         for(int j=0;j<OpeningHandler::size();j++){
             if(j==i) continue;
             if(OpeningHandler::openingList[j]->label>10) continue;
+            if(OpeningHandler::openingList[j]->label==4) continue;
             if(!OpeningHandler::intersectOpenings(OpeningHandler::openingList[i],OpeningHandler::openingList[j])) continue;
             
             OpeningHandler::fixOverlap(OpeningHandler::openingList[i],OpeningHandler::openingList[j],map);
@@ -366,6 +368,7 @@ void OpeningHandler::update(MapHandler* map){
     //Remove openings that still overlap
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
+        if(OpeningHandler::openingList[i]->label==4) continue;
         if(dist(OpeningHandler::openingList[i]->start(),OpeningHandler::openingList[i]->end())<minGroupSize){
             OpeningHandler::disable(OpeningHandler::openingList[i],14);
             i--;
@@ -376,7 +379,8 @@ void OpeningHandler::update(MapHandler* map){
             if(OpeningHandler::openingList[j]->label>10) continue;
             if(!OpeningHandler::intersectOpenings(OpeningHandler::openingList[i],OpeningHandler::openingList[j])) continue;
             if(dist(OpeningHandler::openingList[i]->start(),OpeningHandler::openingList[i]->end())<
-               dist(OpeningHandler::openingList[j]->start(),OpeningHandler::openingList[j]->end())){
+               dist(OpeningHandler::openingList[j]->start(),OpeningHandler::openingList[j]->end())&&
+               OpeningHandler::openingList[j]->label!=4 || OpeningHandler::openingList[i]->label==4){
                 OpeningHandler::disable(OpeningHandler::openingList[j],18);
                 i--;
                 break;
@@ -437,20 +441,22 @@ bool OpeningHandler::findOpenings(MapHandler* map,int targetIndex, vector<openin
                 newOp.end=dList->at(interOpIndex[i]).end;
                 newOp.connectedWallEnd=dList->at(interOpIndex[i]).connectedWallEnd;
             }
-            if(dist(newOp.start,newOp.end)<minGroupSize) continue;
-            double score=dist(newOp.start,newOp.end);
             
-            //newOplist->push_back(newOp);
+            double score=dist(newOp.start,newOp.end);
+            if(score<minGroupSize) continue;
+            
             if(bestScore<0||score<bestScore){
                 if((newOp.end.x-newOp.start.x)*(interPoint[i].y-newOp.start.y)-
                     (newOp.end.y-newOp.start.y)*(interPoint[i].x-newOp.start.x)>0) continue;
-                if(OpeningHandler::checkForWall(newOp,map)) continue;
+                if(OpeningHandler::checkForWall(&newOp,map)) continue;
                 //if(OpeningHandler::check_unnecessary_openings(newOp,map)) continue;
                 selectedIndex=interOpIndex[i];
                 bestNewOp=newOp;
                 bestScore=score;
             }
         }
+        //dList->erase(dList->begin()+targetIndex);
+        //return true;
         if(selectedIndex==-1){
             return false;
         }
@@ -639,8 +645,8 @@ int OpeningHandler::checkForOpenings(wallCell* cell){
     return cell->connectedtOpeningEnd.size()+cell->connectedtOpeningStart.size();
 }
 
-bool OpeningHandler::checkForWall(opening o, MapHandler* map){
-    vector<point_int> p=OpeningHandler::generateOpeningPoints(&o);
+bool OpeningHandler::checkForWall(opening *o, MapHandler* map){
+    vector<point_int> p=OpeningHandler::generateOpeningPoints(o);
     for(int i=0;i<p.size();i++){
         if(map->getMap(p[i].x,p[i].y)==MAP_OCCUPIED) return true;
     }
@@ -721,6 +727,7 @@ void OpeningHandler::disable(openingDetection* op, int label){
 
 void OpeningHandler::clear(){
     OpeningHandler::detectionList.clear();
+    OpeningHandler::openingDebug.clear();
     for(int i=0;i<OpeningHandler::wallList.size();i++){
         OpeningHandler::wallList[i]->clear();
         delete OpeningHandler::wallList[i];
@@ -741,7 +748,7 @@ void OpeningHandler::clear(){
 
 bool OpeningHandler::intersectOpenings(openingDetection *o1,openingDetection *o2){
     point_int p1Max, p1Min, p2Max,p2Min;
-    double l=1;
+    double l=0;
     p1Max.x=std::max(o1->start().x,o1->end().x)+l;
     p1Max.y=std::max(o1->start().y,o1->end().y)+l;
     p1Min.x=std::min(o1->start().x,o1->end().x)-l;
@@ -824,7 +831,7 @@ void OpeningHandler::fixOverlap(openingDetection *o1,openingDetection *o2, MapHa
             int connectedIndex1=connectedWall1->index;
             int connectedIndex2=connectedWall2->index;
             int connectL=connectedWall1->parent->getDistans(connectedIndex1,connectedIndex2);
-            if(connectL>searchLenghtOverlap) continue;
+            //if(connectL>searchLenghtOverlap) continue;
             if(conection_lenght[sides]!=-1 && connectL>=conection_lenght[sides]) continue;
             conection_lenght[sides]=connectL;
             moveEndO2[sides]=dir;
@@ -854,7 +861,7 @@ void OpeningHandler::fixOverlap(openingDetection *o1,openingDetection *o2, MapHa
 
     OpeningHandler::swapEnds(&newO1,!sides,&newO2,!moveEndO2[sides]);
 
-    if(!OpeningHandler::checkForWall(newO1,map)&&!OpeningHandler::checkForWall(newO2,map)){
+    if(!OpeningHandler::checkForWall(&newO1,map)&&!OpeningHandler::checkForWall(&newO2,map)){
         wallCell* w1=o1->getConnection(!sides);
         wallCell* w2=o2->getConnection(!moveEndO2[sides]);
         o1->connect(!sides,w2);

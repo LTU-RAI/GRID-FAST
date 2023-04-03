@@ -122,8 +122,8 @@ void MapTransform::generateMapTransform(int mapSizeX,int mapSizeY){
         sinA=sin(rotation);
         for(int y=0;y<ySize;y++){
             for(int x=0;x<xSize;x++){
-                int newX=int(std::round(((x-xSize/2)*cosA-(y-ySize/2)*sinA)+xSize/2));
-                int newY=int(std::round(((x-xSize/2)*sinA+(y-ySize/2)*cosA)+ySize/2));
+                int newX=int(std::round(((x-xSize/2)*cosA-(y-ySize/2)*sinA)+mapSizeX/2));
+                int newY=int(std::round(((x-xSize/2)*sinA+(y-ySize/2)*cosA)+mapSizeY/2));
                 if(newX<0 || newX>=mapSizeX) continue;
                 if(newY<0 || newY>=mapSizeY) continue;
                 mapTransformCell T;

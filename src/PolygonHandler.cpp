@@ -26,10 +26,11 @@ void PolygonHandler::updateIntersections(OpeningHandler* openingList, MapHandler
 }
 
 void PolygonHandler::optimize(OpeningHandler* openingList, MapHandler* map){
-    for(int optTimes=0;optTimes<1;optTimes++){
+    for(int optTimes=0;optTimes<1 && optimizIntersections;optTimes++){
         for(int pIndex=0;pIndex<PolygonHandler::polygonList.size();pIndex++){
             if(PolygonHandler::polygonList[pIndex]->path) continue;
             //if(pIndex==75) PolygonHandler::polygonList[pIndex]->label=76;
+            //if(pIndex!=23) continue;
             if(PolygonHandler::optimizeIntersection(PolygonHandler::polygonList[pIndex],openingList,map)) continue;
             pIndex--;
         }
@@ -469,7 +470,11 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             return true;
         }
         int loopfrom=0;
-        if(w1.connectedtOpeningEnd[0]==targetOp1) loopfrom=o1back.size()/2;
+        for(int opIndex=0;opIndex<poly->openings.size();opIndex++){
+            if(w1.connectedtOpeningEnd[0]!=poly->openings[opIndex]) continue;
+            loopfrom=o1back.size()/2;
+            break;
+        }
 
         vector<wallCell*> o2front;
         wallCell w2=openingList->getNextOpening(targetOp2,false,1,true,true,false,&o2front);
@@ -478,7 +483,12 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             return true;
         }
         int loopto=0;
-        if(w2.connectedtOpeningStart[0]==targetOp2) loopto=o2front.size()/2;
+        for(int opIndex=0;opIndex<poly->openings.size();opIndex++){
+            if(w2.connectedtOpeningStart[0]!=poly->openings[opIndex]) continue;
+            loopto=o2front.size()/2;
+            break;
+        }
+        
         vector<wallCell*> p;
         openingList->getPointsBetweenOpenings(w1.connectedtOpeningEnd[0],false,w2.connectedtOpeningStart[0],true,&p);
         currentWall.insert(currentWall.end(),p.begin()+loopfrom,p.end()-loopto);
@@ -571,7 +581,7 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
                 prevLength=lenght;
                 decrisCount=0;
             }else{
-                if(decrisCount>=6 && bestScore>0){
+                if(decrisCount>=minimumDesendingSteps && bestScore>0){
                     best=hbest;
                     changed=true;
                     decrisCount=0;
@@ -579,7 +589,7 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
             }
             double score=lenght+DFunction(dist(test.get_center(),centerP));
             if(bestScore<0 || score<bestScore){
-                if(!openingList->checkForWall(test,map)){
+                if(!openingList->checkForWall(&test,map)){
                     bestScore=score;
                     hbest=test;
                 }
@@ -594,6 +604,7 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
                 return false;
             }else{
                 PolygonHandler::removeSideFromPolygon(poly,op,openingList);
+                return false;
                 startPoints.erase(startPoints.begin()+sideIndex);
                 endPoints.erase(endPoints.begin()+sideIndex);
                 sideIndex-=1;

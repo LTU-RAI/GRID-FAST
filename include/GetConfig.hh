@@ -11,11 +11,13 @@ int numberOfDir=4;
 bool forceUpdate=false;
 
 //Opening Settings
-double dw=0.8;
 int searchLenghtOverlap=10;
 
 //Polygon Settings
+bool optimizIntersections=false;
+double dw=0.8;
 int optimizationSteps=0;
+int minimumDesendingSteps=0;
 double minDistToCenter=0;
 double maxPenalty=0;
 int polygonRez=4;
@@ -59,12 +61,16 @@ void load_config_file(const std::string &file_path) {
             numberOfDir = std::stoi(value);
         }else if (key == "forceUpdate") {
             forceUpdate = value=="true"||value=="True"||value=="1";
+        }else if (key == "optimizIntersections") {
+            optimizIntersections = value=="true"||value=="True"||value=="1";
         }else if (key == "dw") {
             dw = std::stod(value);
         }else if (key == "searchLenghtOverlap") {
             searchLenghtOverlap = std::stoi(value);
         }else if (key == "optimizationSteps") {
             optimizationSteps = std::stoi(value);
+        }else if (key == "minimumDesendingSteps") {
+            minimumDesendingSteps = std::stoi(value);
         }else if (key == "minDistToCenter") {
             minDistToCenter = std::stod(value);
         }else if (key == "maxPenalty") {

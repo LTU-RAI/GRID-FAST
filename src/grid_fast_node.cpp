@@ -158,8 +158,9 @@ class TopologyMapping{
             opening op=openingList->get(i)->getOpening();
             pubOpList.push_back(op);
         }
-        /*for(int i=0; i<openingList.gapDetectionsSize(); i++){
-            opening op=*openingList.getDetection(i);
+        pubOpList.insert(pubOpList.end(),openingList->openingDebug.begin(),openingList->openingDebug.end());
+        /*for(int i=0; i<openingList->gapDetectionsSize(); i++){
+            opening op=*openingList->getDetection(i);
             pubOpList.push_back(op);
         }*/
         vector<vector<int>> dMap;
@@ -183,6 +184,9 @@ class TopologyMapping{
         for(int i=0; i<pubOpList.size(); i++){
             //convert the line of an opening to a rectangular polygon
             opening op=pubOpList[i];
+            for(int j=0;j<op.occupiedPoints.size();j++){
+                dMap[op.occupiedPoints[j].x][op.occupiedPoints[j].y]=10;
+            }
             dMap[op.start.x][op.start.y]=100;
             dMap[op.end.x][op.end.y]=50;
             point side={(double)(op.end.x-op.start.x)*resolution,
