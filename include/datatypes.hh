@@ -192,9 +192,9 @@ struct polygon{
     vector<point_int> polygon_points;
     vector<point_int> polygon_points_desplay;
     vector<polygon*> connectedpolygons;
-    vector<vector<point_int>> connectedPaths;
     vector<robotPath> pathList;
     vector<point_int> fillPoints;
+    int index=-1;
     int label=1;
     bool inactiv=false;
     bool path=false;

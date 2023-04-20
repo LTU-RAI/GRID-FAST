@@ -21,6 +21,7 @@ public:
     polygon* add(polygon);
     void remove(polygon*,OpeningHandler*);
     void clear();
+    void updateIndex();
 
 private:
     vector<polygon*> polygonList; 

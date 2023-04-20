@@ -89,28 +89,35 @@ void PolygonHandler::creatPathway(OpeningHandler* openingList,openingDetection* 
     polygon newPoly;
     newPoly.path=true;
     newPoly.openings.push_back(targetOp);
-    vector<wallCell*> wList;
-    wallCell w=openingList->getNextOpening(targetOp,false,1,true,true,false,&wList);
+    wallCell w=openingList->getNextOpening(targetOp,false,1,true,true,false);
 
     if(w.connectedtOpeningStart[0]!=targetOp){
         newPoly.openings.push_back(w.connectedtOpeningStart[0]);
         newPoly.label=64;
         if(newPoly.openings[0]->label== 5|| newPoly.openings[1]->label== 5) newPoly.label=52;
     }else{
-        bool test=false;
-        for(int i=0;i<wList.size();i++){
-            if(!wList[i]->emptyNeighbour) continue;
-            test=true;
+        newPoly.label=41;
+    }
+    polygon *poly = PolygonHandler::add(newPoly);
+    poly->connectedpolygons.resize(poly->openings.size());
+    for(int i=0; i<poly->openings.size();i++){
+        poly->openings[i]->parentCoridor=poly;
+
+        
+        polygon *parent=poly->openings[i]->parent;
+
+        poly->connectedpolygons[i]=parent;
+        if(poly->openings[i]->parent==NULL) continue;
+        int targetIndex=-1;
+        for(int oIndex=0;oIndex<parent->openings.size();oIndex++){
+            if(parent->openings[oIndex]!=poly->openings[i]) continue;
+            targetIndex=oIndex;
             break;
         }
-
-        if(test){
-            newPoly.label=52;
-        }else{
-            newPoly.label=41;
-        }
+        if(targetIndex==-1) continue;
+        parent->connectedpolygons.resize(parent->openings.size());
+        parent->connectedpolygons[targetIndex]=poly;
     }
-    PolygonHandler::add(newPoly);
 }
 
 void PolygonHandler::generatePolygonArea(OpeningHandler* openingList){
@@ -449,6 +456,12 @@ void PolygonHandler::clear(){
     PolygonHandler::polygonList.clear();
 }
 
+void PolygonHandler::updateIndex(){
+    for(int index=0;index<PolygonHandler::polygonList.size();index++){
+        PolygonHandler::polygonList[index]->index=index;
+    }
+}
+
 bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingList, MapHandler* map){
     //ROS_INFO("o0");
     vector<vector<wallCell*>> walls;
@@ -598,7 +611,7 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
 
         op->connect(true,best.connectedWallStart);
         op->connect(false,best.connectedWallEnd);
-        if(!changed){
+        if(!changed || dist(best.start,best.end)<minGroupSize-1 && best.label!=4){
             if(poly->openings.size()<=3){
                 PolygonHandler::remove(poly,openingList);
                 return false;

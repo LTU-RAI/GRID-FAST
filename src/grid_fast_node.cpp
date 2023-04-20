@@ -76,6 +76,16 @@ class TopologyMapping{
         topoMapMsg.info.origin.orientation.w = 1.0;
     }
 
+    grid_fast::point2D_intList ConvertPointListToMsg(robotPath* path){
+        grid_fast::point2D_intList msg;
+        msg.list.resize(path->size());
+        for(int i=0;i<path->size();i++){
+            msg.list[i].x=path->at(i).x;
+            msg.list[i].y=path->at(i).y;
+        }
+        return msg;
+    }
+
     //Get new occupancy map and move its value into Map.
     void updateMap(const nav_msgs::OccupancyGrid& mapMsg){
         vector<int> data;
@@ -338,40 +348,44 @@ class TopologyMapping{
         }
         
         pubPolyDebug.publish(pDebugg);
+
+        polygonList->updateIndex();
         
-        /*topoMapMsg.header.stamp = ros::Time::now();
+        grid_fast::topometricMap topometricMapMsg;
         topometricMapMsg.header=topoMapMsg.header;
         topometricMapMsg.info=topoMapMsg.info;
         topometricMapMsg.polygonType.resize(topoMapMsg.data.size());
         topometricMapMsg.polygonId.resize(topoMapMsg.data.size());
-        topometricMapMsg.polygons.resize(poly_list.size());
+        topometricMapMsg.polygons.resize(polygonList->size());
         for(int i=0;i<topoMapMsg.data.size();i++){
             topometricMapMsg.polygonType[i]=-1;
             topometricMapMsg.polygonId[i]=-1;
-            topoMapMsg.data[i]=-1;
         }
-        for(int i=0; i<poly_list.size();i++){
-            vector<point_int> filedP;//=fillPoly(poly_list[i].polygon_points);
+        for(int i=0; i<polygonList->size();i++){
+            vector<point_int> filedP =fillPoly(polygonList->get(i)->polygon_points);
             for(int j=0;j<filedP.size();j++){
-                int index=filedP[j].x+filedP[j].y*mapSizeX;
-                topometricMapMsg.polygonType[index]=poly_list[i].label;
+                int index=filedP[j].x+filedP[j].y*map->getMapSizeX();
+                topometricMapMsg.polygonType[index]=polygonList->get(i)->label;
                 topometricMapMsg.polygonId[index]=i;
-                topoMapMsg.data[index]=poly_list[i].label;
             }
             //topometricMapMsg.polygons[i].polygonPoints=ConvertPointListToMsg(poly_list[i].polygon_points);
-            int size=poly_list[i].connectedPaths.size();
+            int size=polygonList->get(i)->pathList.size();
             topometricMapMsg.polygons[i].connectedPaths.resize(size);
             for(int n=0;n<size;n++){
-                //topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(poly_list[i].connectedPaths[n]);
+                topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(&polygonList->get(i)->pathList[n]);
             }
             topometricMapMsg.polygons[i].id=i;
-            topometricMapMsg.polygons[i].type=poly_list[i].label;
+            topometricMapMsg.polygons[i].type=polygonList->get(i)->label;
+            topometricMapMsg.polygons[i].connectedPolygons.resize(polygonList->get(i)->connectedpolygons.size());
+            for(int cIndex=0;cIndex<polygonList->get(i)->connectedpolygons.size();cIndex++){
+                if(polygonList->get(i)->connectedpolygons[cIndex]==NULL) continue;
+                topometricMapMsg.polygons[i].connectedPolygons[cIndex]=polygonList->get(i)->connectedpolygons[cIndex]->index;
+            }
             //topometricMapMsg.polygons[i].connectedPolygons=poly_list[i].connectedpolygons;
 
         }
         pubMapDebug.publish(topoMapMsg);
         pubTopometricMap.publish(topometricMapMsg);
-    */
     }
 
 };

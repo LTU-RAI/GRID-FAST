@@ -304,6 +304,7 @@ void OpeningHandler::update(MapHandler* map){
         }
     }
     //Opening Optimization
+    
     OpeningHandler::fixOverlapingPoints(map);
 
     /////////HOT FIX///////////////
