@@ -17,8 +17,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   roslib
   rospy
-  std_msgs
   nav_msgs
+  std_msgs
   geometry_msgs
   jsk_recognition_msgs
   message_generation
@@ -61,7 +61,9 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   point2D_int.msg
+  point2D.msg
   opening.msg 
+  opening_float.msg 
   opening_list.msg
   topoPolygon.msg
   topometricMap.msg
@@ -69,11 +71,10 @@ add_message_files(
 )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+   FILES
+   CustomOpening.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(

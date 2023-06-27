@@ -35,7 +35,6 @@ void OpeningHandler::checkForDetection(int angleIndex, int row, int index, MapHa
     for(int direction=0;direction<2;direction++){
         vector<scanGroup*> connectedGaps=direction?gap->prevGroup:gap->nextGroup;
         if(connectedGaps.size()<2) continue;
-        
         for(int i=0;i<connectedGaps.size();i++){
             if(!OpeningHandler::checkDepth(connectedGaps[i],direction,0)){
                 connectedGaps.erase(connectedGaps.begin()+i);
@@ -392,6 +391,15 @@ void OpeningHandler::update(MapHandler* map){
             }
         }
     }
+
+    for(int i=0;i<OpeningHandler::size();i++){
+        if(OpeningHandler::openingList[i]->label>10) continue;
+        if(OpeningHandler::openingList[i]->label==4) continue;
+        if(!check_unnecessary_openings(OpeningHandler::openingList[i],map)) continue;
+        OpeningHandler::remove(openingList[i]);
+    }
+
+
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label==1){
             opening newOp=OpeningHandler::openingList[i]->getOpening();
@@ -514,14 +522,14 @@ point_int OpeningHandler::findIntersectionPoint(opening o1, opening o2) {
     return p_int;
 }
 
-/*bool OpeningHandler::check_unnecessary_openings(opening o, MapHandler* map){
-    if(o.connectedWallEnd!=o.connectedWallStart) return false;
+bool OpeningHandler::check_unnecessary_openings(openingDetection* o, MapHandler* map){
+    if(o->getConnection(true)->parent!=o->getConnection(false)->parent) return false;
 
-    int maxSteps=(dist(o.start,o.end)*openingRemoveScale);
-    if(double(o.connectedWallEnd->parent->getDistans(o.connectedWallEnd->index,o.connectedWallStart->index))<maxSteps) return true;
+    int maxSteps=(dist(o->getConnection(true)->position,o->getConnection(false)->position)*2);
+    if(double(o->getConnection(true)->parent->getDistans(o->getConnection(true)->index,o->getConnection(false)->index))<maxSteps) return true;
 
     return false;
-}*/
+}
 
 /*void OpeningHandler::fitNonFixedOpenings(MapHandler* map){
     for(int index=0;index<OpeningHandler::size();index++){
@@ -956,6 +964,35 @@ vector<point_int> OpeningHandler::getPointsBetweenOpenings(openingDetection* o1,
         index++;
     }
     return pointList;
+}
+
+void OpeningHandler::addCustomOpening(opening op,int id){
+    for(int i=0;i<OpeningHandler::customOpeningList.size();i++){
+        if(OpeningHandler::customOpeningIdList[i]!=id) continue;
+        OpeningHandler::customOpeningList[i]=op;
+        return;
+    }
+    OpeningHandler::customOpeningIdList.push_back(id);
+    OpeningHandler::customOpeningList.push_back(op);
+    return;
+}
+
+void OpeningHandler::removeCustomOpening(int id){
+    for(int i=0;i<OpeningHandler::customOpeningList.size();i++){
+        if(OpeningHandler::customOpeningIdList[i]!=id) continue;
+        OpeningHandler::customOpeningList.erase(OpeningHandler::customOpeningList.begin()+i);
+        OpeningHandler::customOpeningIdList.erase(OpeningHandler::customOpeningIdList.begin()+i);
+        return;
+    }
+}
+
+int OpeningHandler::maxCustomOpeningId(){
+    int maxId=-1;
+    for(int i=0;i<OpeningHandler::customOpeningList.size();i++){
+        if(OpeningHandler::customOpeningIdList[i]<=maxId) continue;
+        maxId=OpeningHandler::customOpeningIdList[i];
+    }
+    return maxId;
 }
 
 vector<point_int> OpeningHandler::generateOpeningPoints(openingDetection *o){

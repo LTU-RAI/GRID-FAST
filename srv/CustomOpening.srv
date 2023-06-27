@@ -1,0 +1,7 @@
+int8 operation # -1: remove, 1: add custom opening, 2: add custom home  
+int64 id #use to define id of opening to remove 
+opening iOp #not needed if operation is 0, label is not used 
+opening_float fOp #not needed if operation is 0, label is not used 
+---
+int64 id #Id of created/removed opening 
+

@@ -5,7 +5,7 @@
 #include "OpeningHandler.hh"     
 #include "PolygonHandler.hh"   
 
-class TopologyMapping{
+class TopometricMapping{
     private:
         //ROS nh
         ros::NodeHandle nh;
@@ -22,11 +22,13 @@ class TopologyMapping{
         ros::Publisher pubRobotPath;
         ros::Publisher pubPolyDebug;
         ros::Publisher pubMarkDel;
+        //service
+        ros::ServiceServer service;
 
         //msg
         nav_msgs::OccupancyGrid topoMapMsg;
         nav_msgs::OccupancyGrid topoMapMsgD;
-
+        
         MapHandler* map, *mapDebug;
         MapTransform* transform;
         GapHandler* gaps;
@@ -39,10 +41,10 @@ class TopologyMapping{
 
     public:
         //setup
-        TopologyMapping(){
+        TopometricMapping(){
             std::string config_file_path= ros::package::getPath("grid_fast")+"/config/settings.conf";
             load_config_file(config_file_path);
-            subOccupancyMap= nh.subscribe("/map",1,&TopologyMapping::updateMap, this);
+            subOccupancyMap= nh.subscribe("/map",1,&TopometricMapping::updateMap, this);
             pubTopoMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_filterd",5);
             pubdMap=nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_d",5);
             pubOpeningList=nh.advertise<grid_fast::opening_list>("/opening_list_int",5);
@@ -52,6 +54,7 @@ class TopologyMapping{
             pubPolyDebug=nh.advertise<visualization_msgs::MarkerArray>("/polyDebyg",5);
             pubTopoPoly=nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly",5);
             pubTopometricMap=nh.advertise<grid_fast::topometricMap>("/topometricMap",5);
+            service=nh.advertiseService("creat_opening",&TopometricMapping::creatCustomOpenings, this);
             loadMemory();
         }
         
@@ -84,6 +87,36 @@ class TopologyMapping{
             msg.list[i].y=path->at(i).y;
         }
         return msg;
+    }
+
+    bool creatCustomOpenings(grid_fast::CustomOpening::Request &req,
+                             grid_fast::CustomOpening::Response &res){
+        int label=-1;
+        switch (req.operation){
+            case -1:
+                openingList->removeCustomOpening(req.id);
+                res.id=req.id;
+                return true;
+            case 1:
+                label=6;
+                break;
+            case 2:
+                label=8;
+                break;
+            default:
+                break;
+        }
+        int newId=openingList->maxCustomOpeningId()+1;
+        opening newOp;
+        newOp.start.x=req.iOp.start.x;
+        newOp.start.y=req.iOp.start.y;
+        newOp.start.x=req.iOp.end.x;
+        newOp.start.y=req.iOp.end.y;
+        newOp.label=req.iOp.label;
+        openingList->addCustomOpening(newOp,newId);
+
+        res.id=newId;
+        return true;
     }
 
     //Get new occupancy map and move its value into Map.
@@ -119,6 +152,7 @@ class TopologyMapping{
         //ROS_INFO("g5");
         polygonList->updateIntersections(openingList,map);
         timeVector[1].insert(timeVector[1].begin(),T.get_since());
+        //ROS_INFO("g5.5");
         polygonList->optimize(openingList,map);
         //ROS_INFO("g6");
         polygonList->generatePolygonArea(openingList);
@@ -375,6 +409,8 @@ class TopologyMapping{
                 topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(&polygonList->get(i)->pathList[n]);
             }
             topometricMapMsg.polygons[i].id=i;
+            topometricMapMsg.polygons[i].center.x=polygonList->get(i)->center.x;
+            topometricMapMsg.polygons[i].center.y=polygonList->get(i)->center.y;
             topometricMapMsg.polygons[i].type=polygonList->get(i)->label;
             topometricMapMsg.polygons[i].connectedPolygons.resize(polygonList->get(i)->connectedpolygons.size());
             for(int cIndex=0;cIndex<polygonList->get(i)->connectedpolygons.size();cIndex++){
@@ -395,7 +431,7 @@ int main(int argc, char** argv){
 
     ros::init(argc, argv, "topology_gap_analysis");
     
-    TopologyMapping topMapping;
+    TopometricMapping topMapping;
 
     ROS_INFO("Topology Gap Analysis Started.");
     

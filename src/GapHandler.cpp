@@ -62,11 +62,12 @@ void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTrans
     int cfilter=0;
     int cGroupeSize=0;
     vector<point_int> scanPoints;
-    for(int index=0;index<transform->getMaptransformSizeX(angleIndex,row);index++){
+    int maxIndex=transform->getMaptransformSizeX(angleIndex,row);
+    for(int index=0;index<maxIndex;index++){
         mapTransformCell mt=transform->getMapTransformCell(angleIndex,row,index);
         //Finde groups
         int mapValue=map->getMapUnsafe(mt.rpos.x,mt.rpos.y);
-        if(mapValue==0){ 
+        if(mapValue==0 && index!=maxIndex-1){ 
             if(cGroupeSize==0){
                 sg.start=mt.tpos.x;
             }
@@ -74,7 +75,7 @@ void GapHandler::analysisAtRow(int angleIndex, int row,MapHandler* map, MapTrans
             cfilter=0;
             scanPoints.push_back(mt.rpos);
         //filter out unoccupied cells
-        }else if (mapValue==-1 && cfilter<cfilterSize && cGroupeSize!=0){
+        }else if (mapValue==-1 && cfilter<cfilterSize && cGroupeSize!=0 && index!=maxIndex-1){
             cfilter+=1;
             scanPoints.push_back(mt.rpos);
         

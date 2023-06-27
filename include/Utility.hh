@@ -14,6 +14,7 @@
 #include <visualization_msgs/Marker.h>
 #include <grid_fast/opening_list.h>
 #include <grid_fast/topometricMap.h>
+#include <grid_fast/CustomOpening.h>
 using namespace std;
 
 #define MAP_OCCUPIED 100
@@ -46,6 +47,11 @@ bool operator!=(const point_int& lhs, const point_int& rhs)
 
 double dist(point_int p1, point_int p2){
     point_int d={p1.x-p2.x,p1.y-p2.y};
+    return sqrt(d.x*d.x+d.y*d.y);
+}
+
+double dist(point p1, point p2){
+    point d={p1.x-p2.x,p1.y-p2.y};
     return sqrt(d.x*d.x+d.y*d.y);
 }
 
@@ -160,6 +166,26 @@ vector<point_int> fillPoly(vector<point_int> PL){
         }
     }
     return filledPoints;
+}
+
+vector<point> fillPoints(point start, point end,double spacing,bool lastAndFirst=false){
+    vector<point> out;
+    point norm;
+    double d=dist(start,end);
+    norm.x=(end.x-start.x)/d*spacing;
+    norm.y=(end.y-start.y)/d*spacing;
+
+    for(int s=lastAndFirst?0:1;s<(int)(d/spacing);s++){
+        point p;
+        p.x=start.x+norm.x*s;
+        p.y=start.y+norm.y*s;
+        out.push_back(p);
+    }
+    if(lastAndFirst){
+        out.push_back(end);
+    }
+
+    return out;
 }
 
 vector<point_int> fillPoints(point_int start, point_int end,double spacing,bool lastAndFirst=false){

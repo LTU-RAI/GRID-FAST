@@ -25,8 +25,13 @@ public:
     bool checkForWall(opening *o, MapHandler*);
     wallCell getNextOpening(openingDetection*,bool,int,bool,bool checkFirst=false,bool stopAtEmpty=false,vector<wallCell*>* pointList=NULL);
     vector<point_int> getPointsBetweenOpenings(openingDetection*,bool,openingDetection*,bool, vector<wallCell*>* wallPoints=NULL); 
+    void addCustomOpening(opening op,int id);
+    void removeCustomOpening(int id);
+    int maxCustomOpeningId();
 private:
     vector<opening> detectionList;
+    vector<opening> customOpeningList;
+    vector<int> customOpeningIdList;
     vector<vector<vector<int>>> detectionMap;
     vector<openingDetection*> openingList;
     vector<wall*> wallList;
@@ -40,7 +45,7 @@ private:
     void getAndFilterWall(MapHandler*, point_int, vector<point_int>*);
     bool findOpenings(MapHandler*,int, vector<opening>*, vector<int>*);
     point_int findIntersectionPoint(opening, opening);
-    bool check_unnecessary_openings(opening o,MapHandler*);
+    bool check_unnecessary_openings(openingDetection* o, MapHandler* map);
     //void fitNonFixedOpenings(MapHandler*);
     void fixOverlapingPoints(MapHandler*);
     bool ccw(point,point,point);

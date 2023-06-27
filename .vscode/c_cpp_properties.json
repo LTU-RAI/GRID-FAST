@@ -6,6 +6,7 @@
                 "limitSymbolsToIncludedHeaders": false
             },
             "includePath": [
+                "${workspaceFolder}/include/**",
                 "/home/scott/rosWS/devel/include/**",
                 "/opt/ros/noetic/include/**",
                 "/home/scott/rosWS/src/hector_slam/hector_geotiff/include/**",
@@ -22,8 +23,7 @@
                 "/home/scott/rosWS/src/topology_mapping_visualization_and_testing/include/**",
                 "/home/scott/rosWS/src/traversability_mapping/traversability_mapping/include/**",
                 "/home/scott/rosWS/src/turtlebot3_simulations/turtlebot3_gazebo/include/**",
-                "/usr/include/**",
-                "${workspaceFolder}/include"
+                "/usr/include/**"
             ],
             "name": "ROS",
             "intelliSenseMode": "gcc-x64",
