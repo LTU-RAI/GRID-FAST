@@ -20,6 +20,10 @@ using namespace std;
 #define MAP_OCCUPIED 100
 #define MAP_UNOCCUPIED 0
 #define MAP_UNKNOWN -1
+#define AREA_INTERSECTION 30
+#define AREA_PATHWAY 64
+#define AREA_PATH_TO_FRONTER 52
+#define AREA_DEAD_END 41
 
 class Time {
 public:

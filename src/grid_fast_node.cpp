@@ -79,12 +79,16 @@ class TopometricMapping{
         topoMapMsg.info.origin.orientation.w = 1.0;
     }
 
-    grid_fast::point2D_intList ConvertPointListToMsg(robotPath* path){
-        grid_fast::point2D_intList msg;
+    grid_fast::point2D_List ConvertPointListToMsg(robotPath* path,MapHandler *map){
+        grid_fast::point2D_List msg;
         msg.list.resize(path->size());
+        double rez=map->getMapResolution();
+     
         for(int i=0;i<path->size();i++){
-            msg.list[i].x=path->at(i).x;
-            msg.list[i].y=path->at(i).y;
+            point p={(double(path->at(i).x))*rez+map->getMapOffsetX(),
+                     (double(path->at(i).y))*rez+map->getMapOffsetY()};
+            msg.list[i].x=p.x;
+            msg.list[i].y=p.y;
         }
         return msg;
     }
@@ -140,7 +144,7 @@ class TopometricMapping{
         gaps->clear();
         openingList->clear();
         polygonList->clear();
-        //ROS_INFO("g1");
+        // ROS_INFO("g1");
         transform->updateTransform(map,forceUpdate);
         timeVector[0].insert(timeVector[0].begin(),T.get_since());
         //ROS_INFO("g2");
@@ -154,6 +158,7 @@ class TopometricMapping{
         timeVector[1].insert(timeVector[1].begin(),T.get_since());
         //ROS_INFO("g5.5");
         polygonList->optimize(openingList,map);
+        polygonList->mergPolygons(openingList,map);
         //ROS_INFO("g6");
         polygonList->generatePolygonArea(openingList);
         timeVector[2].insert(timeVector[2].begin(),T.get_since());
@@ -406,7 +411,7 @@ class TopometricMapping{
             int size=polygonList->get(i)->pathList.size();
             topometricMapMsg.polygons[i].connectedPaths.resize(size);
             for(int n=0;n<size;n++){
-                topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(&polygonList->get(i)->pathList[n]);
+                topometricMapMsg.polygons[i].connectedPaths[n]=ConvertPointListToMsg(&polygonList->get(i)->pathList[n],map);
             }
             topometricMapMsg.polygons[i].id=i;
             topometricMapMsg.polygons[i].center.x=polygonList->get(i)->center.x;

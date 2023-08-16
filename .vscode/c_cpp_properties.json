@@ -9,27 +9,14 @@
                 "${workspaceFolder}/include/**",
                 "/home/scott/rosWS/devel/include/**",
                 "/opt/ros/noetic/include/**",
-                "/home/scott/rosWS/src/hector_slam/hector_geotiff/include/**",
-                "/home/scott/rosWS/src/hector_slam/hector_map_tools/include/**",
-                "/home/scott/rosWS/src/hector_slam/hector_mapping/include/**",
-                "/home/scott/rosWS/src/hector_slam/hector_marker_drawing/include/**",
-                "/home/scott/rosWS/src/libviconstream/include/**",
-                "/home/scott/rosWS/src/LIO-SAM/include/**",
-                "/home/scott/rosWS/src/mav_comm/mav_msgs/include/**",
-                "/home/scott/rosWS/src/mav_comm/mav_planning_msgs/include/**",
-                "/home/scott/rosWS/src/ros_viconstream/include/**",
-                "/home/scott/rosWS/src/topology_mapping_demo/include/**",
-                "/home/scott/rosWS/src/topology_mapping_demo2/include/**",
-                "/home/scott/rosWS/src/topology_mapping_visualization_and_testing/include/**",
-                "/home/scott/rosWS/src/traversability_mapping/traversability_mapping/include/**",
-                "/home/scott/rosWS/src/turtlebot3_simulations/turtlebot3_gazebo/include/**",
-                "/usr/include/**"
+                "/usr/include/*"
             ],
             "name": "ROS",
             "intelliSenseMode": "gcc-x64",
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "gnu11",
-            "cppStandard": "c++14"
+            "cppStandard": "c++14",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
         }
     ],
     "version": 4

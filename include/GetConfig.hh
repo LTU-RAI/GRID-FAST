@@ -21,6 +21,8 @@ int minimumDesendingSteps=0;
 double minDistToCenter=0;
 double maxPenalty=0;
 int polygonRez=4;
+bool polygonMerging=false;
+double polygonMergingDist=1;
 
 //Robot Path Settings
 int voronoiRez=6;
@@ -77,6 +79,10 @@ void load_config_file(const std::string &file_path) {
             maxPenalty = std::stod(value);
         }else if (key == "polygonRez") {
             polygonRez = std::stoi(value);
+        }else if (key == "polygonMerging") {
+            polygonMerging = value=="true"||value=="True"||value=="1";
+        }else if (key == "polygonMergingDist") {
+            polygonMergingDist = std::stod(value);
         }else if (key == "voronoiRez") {
             voronoiRez = std::stoi(value);
         }else if (key == "show_removed_openings") {

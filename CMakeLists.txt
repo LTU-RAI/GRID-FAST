@@ -68,6 +68,7 @@ add_message_files(
   topoPolygon.msg
   topometricMap.msg
   point2D_intList.msg
+  point2D_List.msg
 )
 
 ## Generate services in the 'srv' folder

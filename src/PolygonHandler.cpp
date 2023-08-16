@@ -38,7 +38,15 @@ void PolygonHandler::optimize(OpeningHandler* openingList, MapHandler* map){
     PolygonHandler::getPathways(openingList);
 }
 
-void PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetection* startOp){
+void PolygonHandler::mergPolygons(OpeningHandler* openingList,MapHandler* map){
+    if(!polygonMerging) return;
+    for(int pIndex=0;pIndex<PolygonHandler::polygonList.size();pIndex++){
+        if(PolygonHandler::polygonList[pIndex]->label!=AREA_PATHWAY) continue;
+        if(PolygonHandler::merge(PolygonHandler::polygonList[pIndex],openingList,map)) pIndex=0;
+    }
+}
+
+polygon* PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetection* startOp){
     polygon newPoly;
     newPoly.openings.push_back(startOp);
     openingDetection* targetOp=startOp;
@@ -50,7 +58,7 @@ void PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetect
             for(int i=0;i<newPoly.openings.size();i++){
                 if(newPoly.openings[i]==w.connectedtOpeningEnd[0]){
                     openingList->remove(newPoly.openings[i]);
-                    return;
+                    return NULL;
                 }
             }
             newPoly.openings.push_back(w.connectedtOpeningEnd[0]);
@@ -67,10 +75,10 @@ void PolygonHandler::creatIntersection(OpeningHandler* openingList,openingDetect
         for(int i=0;i<newPoly.openings.size();i++){
             newPoly.openings[i]->label=28;
         }
-        return;
+        return NULL;
     }
     newPoly.label=30;
-    PolygonHandler::add(newPoly);
+    return PolygonHandler::add(newPoly);
 }
 
 void PolygonHandler::getPathways(OpeningHandler* openingList){
@@ -184,11 +192,13 @@ void PolygonHandler::getPathForPolygon(polygon* poly,OpeningHandler* openingList
         }
         vector<point_int> np;
         if((!poly->path)&&!PolygonHandler::checkIfObstructed(center,oCenter1,map)){
-            np.push_back(oCenter1);
-            np.push_back(center);
+            // np.push_back(oCenter1);
+            // np.push_back(center);
+            np=fillPoints(oCenter1,center,2,true);
         }else if(poly->path && poly->openings.size()==2 && !checkIfObstructed(oCenter1,oCenter2,map)){
-            np.push_back(oCenter1);
-            np.push_back(oCenter2);
+            // np.push_back(oCenter1);
+            // np.push_back(oCenter2);
+            np=fillPoints(oCenter1,oCenter2,2,true);
         }else{
             vector<point_int> vp;
             if(!poly->path){
@@ -438,8 +448,8 @@ polygon* PolygonHandler::add(polygon newPoly){
     return polyToAdd;
 }
 
-void PolygonHandler::remove(polygon* poly, OpeningHandler* openingList){
-    for(int i=0;i<poly->openings.size();i++){
+void PolygonHandler::remove(polygon* poly, OpeningHandler* openingList,bool removeOpenings){
+    for(int i=0;i<poly->openings.size()&&removeOpenings;i++){
         openingList->disable(poly->openings[i],26);
     }
     for(int i=0;i<PolygonHandler::polygonList.size();i++){
@@ -640,6 +650,54 @@ bool PolygonHandler::optimizeIntersection(polygon* poly,OpeningHandler* openingL
     }
     return true;
 }
+
+bool PolygonHandler::merge(polygon* poly,OpeningHandler* openingList, MapHandler* map){
+    openingDetection* InterOpening1=poly->openings[0];
+    openingDetection* InterOpening2=poly->openings[1];
+    double d=dist(InterOpening1->getCenter(),InterOpening2->getCenter());
+    if(d>polygonMergingDist/map->getMapResolution()) return false;
+    polygon* Intersection1=poly->openings[0]->parent;
+    polygon* Intersection2=poly->openings[1]->parent;
+    double currentOpeningDist=-1;
+    double OpeningDist=-1;
+    vector<openingDetection*> newOpList;
+    for(openingDetection* op:Intersection1->openings){
+        d=dist(op->end(),op->start());
+        if(op==InterOpening1){
+            currentOpeningDist=d;
+        }else{
+            OpeningDist=max(OpeningDist,d);
+            newOpList.push_back(op);
+        }
+    }
+    if(currentOpeningDist<OpeningDist) return false;
+    currentOpeningDist=-1;
+    OpeningDist=-1;
+    for(openingDetection* op:Intersection2->openings){
+        d=dist(op->end(),op->start());
+        if(op==InterOpening2){
+            currentOpeningDist=d;
+        }else{
+            OpeningDist=max(OpeningDist,d);
+            newOpList.push_back(op);
+        }
+    }
+    if(currentOpeningDist<OpeningDist) return false;
+
+    PolygonHandler::remove(poly,openingList,false);
+    PolygonHandler::remove(Intersection1,openingList,false);
+    PolygonHandler::remove(Intersection2,openingList,false);
+    
+    openingList->disable(InterOpening1,26);
+    openingList->disable(InterOpening2,26);
+    polygon* newPoly= PolygonHandler::creatIntersection(openingList,newOpList[0]);
+    for(openingDetection* op:newOpList){
+        PolygonHandler::remove(op->parentCoridor,openingList,false);
+        PolygonHandler::creatPathway(openingList,op);
+    }
+    return true;
+}
+
 double PolygonHandler::DFunction(double length){
     if(length>minDistToCenter) return dw*(length-minDistToCenter);
     

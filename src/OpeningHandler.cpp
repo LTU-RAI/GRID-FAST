@@ -191,6 +191,12 @@ void OpeningHandler::getAndFilterWall(MapHandler* map, point_int start, vector<p
     vector<point_int> fronterToRemove;
     vector<int> detectionsToRemove;
     int occupideWall=0;
+    step=map->ant_step(step,true);
+    while(step.emty_cell){
+        step=map->ant_step(step,true);
+        if(step.end==start) break;
+    }
+    start=step.end;
     for(int s=0;s<2000000;s++){
         point_int oS=step.end;
         step=map->ant_step(step,true);
@@ -303,9 +309,7 @@ void OpeningHandler::update(MapHandler* map){
         }
     }
     //Opening Optimization
-    
     OpeningHandler::fixOverlapingPoints(map);
-
     /////////HOT FIX///////////////
     for(int index=0; index<OpeningHandler::size();index++){
         for(int sids=0;sids<2;sids++){
@@ -351,7 +355,6 @@ void OpeningHandler::update(MapHandler* map){
         }
     }
     //////////////////(//////////////
-
     //Fix overlap
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
@@ -391,14 +394,12 @@ void OpeningHandler::update(MapHandler* map){
             }
         }
     }
-
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
         if(OpeningHandler::openingList[i]->label==4) continue;
         if(!check_unnecessary_openings(OpeningHandler::openingList[i],map)) continue;
         OpeningHandler::remove(openingList[i]);
     }
-
 
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label==1){
@@ -416,7 +417,7 @@ void OpeningHandler::update(MapHandler* map){
     }
 }
 
-bool OpeningHandler::findOpenings(MapHandler* map,int targetIndex, vector<opening> *dList, vector<int> *ignorList){
+bool OpeningHandler::findOpenings(MapHandler* map,int targetIndex, vector<opening> *dList, vector<int> *ignorList, int *callingIndex){
     while (true){
         if(dList->at(targetIndex).sideToMove==3){
             return false;
@@ -450,7 +451,6 @@ bool OpeningHandler::findOpenings(MapHandler* map,int targetIndex, vector<openin
                 newOp.end=dList->at(interOpIndex[i]).end;
                 newOp.connectedWallEnd=dList->at(interOpIndex[i]).connectedWallEnd;
             }
-            
             double score=dist(newOp.start,newOp.end);
             if(score<minGroupSize) continue;
             
@@ -473,12 +473,17 @@ bool OpeningHandler::findOpenings(MapHandler* map,int targetIndex, vector<openin
             if(ignorList->at(i)==selectedIndex) return false;
         }
         ignorList->push_back(targetIndex);
-        bool check=findOpenings(map,selectedIndex,dList,ignorList);
+
+        bool check=findOpenings(map,selectedIndex,dList,ignorList,&targetIndex);
         ignorList->pop_back();
         if(check) continue;
         OpeningHandler::add(bestNewOp);
         dList->erase(dList->begin()+std::max(targetIndex,selectedIndex));
         dList->erase(dList->begin()+std::min(targetIndex,selectedIndex));
+        if(callingIndex!=NULL){
+            if(*callingIndex>targetIndex) *callingIndex-=1;
+            if(*callingIndex>selectedIndex) *callingIndex-=1;
+        }
         for(int i=0; i<ignorList->size(); i++){
             if(ignorList->at(i)>targetIndex) ignorList->at(i)--;
             if(ignorList->at(i)>selectedIndex) ignorList->at(i)--;
