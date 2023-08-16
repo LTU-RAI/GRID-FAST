@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(topology_mapping)
+project(grid_fast)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 set(CMAKE_CXX_STANDARD 14)
+#set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -12,9 +15,10 @@ set(CMAKE_CXX_STANDARD 14)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  roslib
   rospy
-  std_msgs
   nav_msgs
+  std_msgs
   geometry_msgs
   jsk_recognition_msgs
   message_generation
@@ -57,19 +61,21 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   point2D_int.msg
+  point2D.msg
   opening.msg 
+  opening_float.msg 
   opening_list.msg
   topoPolygon.msg
   topometricMap.msg
   point2D_intList.msg
+  point2D_List.msg
 )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+   FILES
+   CustomOpening.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -116,8 +122,9 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
+  INCLUDE_DIRS config
   CATKIN_DEPENDS message_runtime
-#  LIBRARIES topology_mapping
+#  LIBRARIES mapping
 #  CATKIN_DEPENDS roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
@@ -135,7 +142,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/topology_mapping.cpp
+#   src/${PROJECT_NAME}/mapping.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -146,15 +153,40 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(topology_gap_analysis_node src/topology_gap_analysis_node.cpp)
-add_dependencies(topology_gap_analysis_node ${topology_gap_analysis_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(topology_gap_analysis_node ${catkin_LIBRARIES})
-add_executable(topology_mapping_node src/topology_mapping_node.cpp)
-add_dependencies(topology_mapping_node ${topology_mapping_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(topology_mapping_node ${catkin_LIBRARIES})
-add_executable(topology_navigation_node src/topology_navigation_node.cpp)
-add_dependencies(topology_navigation_node ${topology_mapping_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(topology_navigation_node ${catkin_LIBRARIES})
+
+###Classes###
+add_library(map_handler_class src/MapHandler.cpp)
+add_dependencies(map_handler_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(map_handler_class ${catkin_LIBRARIES})
+add_library(map_transform_class src/MapTransform.cpp)
+add_dependencies(map_transform_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(map_transform_class ${catkin_LIBRARIES})
+add_library(gap_handler_class src/GapHandler.cpp)
+add_dependencies(gap_handler_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(gap_handler_class ${catkin_LIBRARIES})
+add_library(opening_handler_class src/OpeningHandler.cpp)
+add_dependencies(opening_handler_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(opening_handler_class ${catkin_LIBRARIES})
+add_library(polygon_handler_class src/PolygonHandler.cpp)
+add_dependencies(polygon_handler_class ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(polygon_handler_class ${catkin_LIBRARIES})
+
+###Nodes###
+add_executable(grid_fast_node src/grid_fast_node.cpp)
+add_dependencies(grid_fast_node ${grid_fast_node_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(
+  grid_fast_node 
+  map_handler_class 
+  map_transform_class 
+  gap_handler_class  
+  opening_handler_class 
+  polygon_handler_class 
+  ${catkin_LIBRARIES}
+)
+
+
+
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -215,7 +247,7 @@ target_link_libraries(topology_navigation_node ${catkin_LIBRARIES})
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_topology_mapping.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_mapping.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

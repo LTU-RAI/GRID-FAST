@@ -76,6 +76,8 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "bit": "cpp",
-        "any": "cpp"
+        "any": "cpp",
+        "regex": "cpp",
+        "*.ipp": "cpp"
     }
 }

@@ -1,4 +1,4 @@
-#include "Utility.h"                       
+#include "Utility.hh"                       
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
