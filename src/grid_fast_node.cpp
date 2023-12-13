@@ -4,6 +4,8 @@
 #include "GapHandler.hh"                
 #include "OpeningHandler.hh"     
 #include "PolygonHandler.hh"   
+#include <fstream>
+#include <string>
 
 class TopometricMapping{
     private:
@@ -37,6 +39,7 @@ class TopometricMapping{
 
         int oldNodCount=0;
         vector<vector<double>> timeVector;
+        Time tFromS;
 
 
     public:
@@ -134,40 +137,48 @@ class TopometricMapping{
             bData[index]=-1;
         }
         map->updateMap(data,mapMsg.info.width,mapMsg.info.height,
-                      mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y,mapMsg.info.origin.position.z);
+                      mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y,mapMsg.info.origin.position.z,mapMsg.info.origin.position.z);
         
         
         mapDebug->updateMap(bData,mapMsg.info.width,mapMsg.info.height,
-                      mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y,mapMsg.info.origin.position.z);
+                      mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y,mapMsg.info.origin.position.z,mapMsg.info.origin.position.z);
         Time T;
-        //ROS_INFO("g0");
+        // ROS_INFO("g0");
         gaps->clear();
         openingList->clear();
         polygonList->clear();
         // ROS_INFO("g1");
         transform->updateTransform(map,forceUpdate);
         timeVector[0].insert(timeVector[0].begin(),T.get_since());
-        //ROS_INFO("g2");
+        // ROS_INFO("g2");
         gaps->analysis(map,transform);
-        //ROS_INFO("g3");
+        // ROS_INFO("g3");
         openingList->updateDetections(map,transform,gaps);
-        //ROS_INFO("g4");
+        // ROS_INFO("g4");
         openingList->update(map);
-        //ROS_INFO("g5");
+        // ROS_INFO("g5");
         polygonList->updateIntersections(openingList,map);
         timeVector[1].insert(timeVector[1].begin(),T.get_since());
-        //ROS_INFO("g5.5");
+        // ROS_INFO("g5.5");
         polygonList->optimize(openingList,map);
         polygonList->mergPolygons(openingList,map);
-        //ROS_INFO("g6");
+        // ROS_INFO("g6");
         polygonList->generatePolygonArea(openingList);
         timeVector[2].insert(timeVector[2].begin(),T.get_since());
-        //ROS_INFO("g7");
+        // ROS_INFO("g7");
         polygonList->generateRobotPath(openingList,map,mapDebug);
-        //ROS_INFO("g8");
+        // ROS_INFO("g8");
         
         timeVector[3].insert(timeVector[3].begin(),T.get_since());
         vector<double> Td;
+        // std::ofstream file("/home/scott/prob/GFOut.txt", std::ios::app);
+
+        // if (file.is_open()) {
+        //     // Append the values to the file.
+        //     file << tFromS.get_since() << "," << timeVector[3][0] << std::endl;
+
+        //     file.close();
+        // }
         Td.resize(timeVector.size());
         for(int i1=0;i1<timeVector.size();i1++){
             Td[i1]=0;
@@ -231,6 +242,7 @@ class TopometricMapping{
         int MapOrigenX=-map->getMapOffsetX()/resolution;
         int MapOrigenY=-map->getMapOffsetY()/resolution;
         for(int i=0; i<pubOpList.size(); i++){
+            double zHight=map->getMapOffsetZ()+0.11;
             //convert the line of an opening to a rectangular polygon
             opening op=pubOpList[i];
             for(int j=0;j<op.occupiedPoints.size();j++){
@@ -251,31 +263,31 @@ class TopometricMapping{
             p.polygon.points.resize(7);
             p.polygon.points[0].x=(op.start.x-MapOrigenX)*resolution;
             p.polygon.points[0].y=(op.start.y-MapOrigenY)*resolution;
-            p.polygon.points[0].z=0.2;
+            p.polygon.points[0].z=zHight;
 
             p.polygon.points[1].x=(op.start.x-MapOrigenX)*resolution+side.x/2-nSide.x;
             p.polygon.points[1].y=(op.start.y-MapOrigenY)*resolution+side.y/2-nSide.y;
-            p.polygon.points[1].z=0.2;
+            p.polygon.points[1].z=zHight;
 
             p.polygon.points[2].x=(op.start.x-MapOrigenX)*resolution+side.x/2+2*nNorm.x;
             p.polygon.points[2].y=(op.start.y-MapOrigenY)*resolution+side.y/2+2*nNorm.y;
-            p.polygon.points[2].z=0.2;
+            p.polygon.points[2].z=zHight;
 
             p.polygon.points[3].x=(op.start.x-MapOrigenX)*resolution+side.x/2+nSide.x;
             p.polygon.points[3].y=(op.start.y-MapOrigenY)*resolution+side.y/2+nSide.y;
-            p.polygon.points[3].z=0.2;
+            p.polygon.points[3].z=zHight;
 
             p.polygon.points[4].x=(op.end.x-MapOrigenX)*resolution;
             p.polygon.points[4].y=(op.end.y-MapOrigenY)*resolution;
-            p.polygon.points[4].z=0.2;
+            p.polygon.points[4].z=zHight;
             
             p.polygon.points[5].x=(op.end.x-MapOrigenX)*resolution-nNorm.x;
             p.polygon.points[5].y=(op.end.y-MapOrigenY)*resolution-nNorm.y;
-            p.polygon.points[5].z=0.2;
+            p.polygon.points[5].z=zHight;
 
             p.polygon.points[6].x=(op.start.x-MapOrigenX)*resolution-nNorm.x;
             p.polygon.points[6].y=(op.start.y-MapOrigenY)*resolution-nNorm.y;
-            p.polygon.points[6].z=0.2;
+            p.polygon.points[6].z=zHight;
             
             pubPolyArray_old.polygons[i]=p;
             pubPolyArray_old.labels[i]=op.label;
@@ -298,7 +310,7 @@ class TopometricMapping{
         int c=0;
         for(int i=0; i<polygonList->size(); i++){
             polygon p=*polygonList->get(i);
-            pubPolyArray.polygons[i]=get_polygon(p,resolution,map->getMapOffsetX(),map->getMapOffsetY());
+            pubPolyArray.polygons[i]=get_polygon(p,resolution,map->getMapOffsetX(),map->getMapOffsetY(),map->getMapOffsetZ()+0.1);
             pubPolyArray.labels[i]=p.label;
             if(p.label==30 || p.label==41 || p.label==76 || p.label==52) c++;
             pubPolyArray.likelihood[i]=1;

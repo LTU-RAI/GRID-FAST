@@ -4,7 +4,7 @@
 #include "ros/ros.h"
 #include <ros/package.h>
 #include <sys/time.h>
-#include <thread>
+
 #include "datatypes.hh"
 #include "GetConfig.hh"
 #include <nav_msgs/OccupancyGrid.h>

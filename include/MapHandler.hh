@@ -8,12 +8,13 @@ class MapHandler
 public:
     MapHandler();
     ~MapHandler();
-    void updateMap(vector<int>,int,int,float,double newMapOffsetX=0,double newMapOffsetY=0,double newMapHight=0);
+    void updateMap(vector<int>,int,int,float,double newMapOffsetX=0,double newMapOffsetY=0, double newMapOffsetZ=0,double newMapHight=0);
     void updateMap(MapHandler*);
     int getMapSizeX();
     int getMapSizeY();
     double getMapOffsetX();
     double getMapOffsetY();
+    double getMapOffsetZ();
     double getMapHight();
     float getMapResolution();
     int getMap(int,int);
@@ -25,7 +26,7 @@ public:
 private:
     vector<int> map;
     int mapSizeX, mapSizeY;
-    double mapOffsetX, mapOffsetY, mapHight;
+    double mapOffsetX, mapOffsetY, mapOffsetZ, mapHight;
     float resulution;
     point_int rotate_dir(point_int dir, bool cw);
 };

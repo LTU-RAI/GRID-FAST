@@ -1,6 +1,6 @@
 <launch>
 
-     <node pkg="grid_fast" type="grid_fast_node" name="grid_fast" output="screen"> 
+     <node pkg="grid_fast" type="grid_fast_node" name="grid_fast" respawn="false" output="screen"> 
      
      </node> 
 

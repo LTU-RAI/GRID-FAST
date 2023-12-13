@@ -13,10 +13,11 @@ MapHandler::MapHandler(){
 MapHandler::~MapHandler(){
 }
 
-void MapHandler::updateMap(vector<int> newMap,int newSizeX,int newSizeY,float newResulution,double newMapOffsetX,double newMapOffsetY,double newMapHight){
+void MapHandler::updateMap(vector<int> newMap,int newSizeX,int newSizeY,float newResulution,double newMapOffsetX,double newMapOffsetY,double newMapOffsetZ,double newMapHight){
     MapHandler::resulution=newResulution;
     MapHandler::mapOffsetX=newMapOffsetX;
     MapHandler::mapOffsetY=newMapOffsetY;
+    MapHandler::mapOffsetZ=newMapOffsetZ;
     MapHandler::mapHight=newMapHight;
     MapHandler::mapSizeX=newSizeX;
     MapHandler::mapSizeY=newSizeY;
@@ -49,6 +50,10 @@ double MapHandler::getMapOffsetX(){
 
 double MapHandler::getMapOffsetY(){
     return MapHandler::mapOffsetY;
+}
+
+double MapHandler::getMapOffsetZ(){
+    return MapHandler::mapOffsetZ;
 }
 
 double MapHandler::getMapHight(){

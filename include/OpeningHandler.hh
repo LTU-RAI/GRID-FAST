@@ -43,7 +43,7 @@ private:
     void correctOpening(opening*,MapHandler*);
     void getWalls(MapHandler*);
     void getAndFilterWall(MapHandler*, point_int, vector<point_int>*);
-    bool findOpenings(MapHandler*,int, vector<opening>*, vector<int>*, int *callingIndex=NULL);
+    void findOpenings(MapHandler*, vector<opening>*);
     point_int findIntersectionPoint(opening, opening);
     bool check_unnecessary_openings(openingDetection* o, MapHandler* map);
     //void fitNonFixedOpenings(MapHandler*);
@@ -54,4 +54,5 @@ private:
     void swapEnds(opening*,bool,opening*,bool);
     vector<point_int> generateOpeningPoints(openingDetection *o);
     vector<point_int> generateOpeningPoints(opening *o);
+    int checkForPotensialOpening(MapHandler* map,int targetIndex, vector<opening> *dList, vector<int> *ignorList, opening *op=NULL, bool returnFirst=false);
 };
