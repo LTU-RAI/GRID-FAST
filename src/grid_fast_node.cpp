@@ -431,7 +431,10 @@ class TopometricMapping{
             topometricMapMsg.polygons[i].type=polygonList->get(i)->label;
             topometricMapMsg.polygons[i].connectedPolygons.resize(polygonList->get(i)->connectedpolygons.size());
             for(int cIndex=0;cIndex<polygonList->get(i)->connectedpolygons.size();cIndex++){
-                if(polygonList->get(i)->connectedpolygons[cIndex]==NULL) continue;
+                if(polygonList->get(i)->connectedpolygons[cIndex]==NULL){
+                    topometricMapMsg.polygons[i].connectedPolygons[cIndex]=-1;
+                    continue;
+                } 
                 topometricMapMsg.polygons[i].connectedPolygons[cIndex]=polygonList->get(i)->connectedpolygons[cIndex]->index;
             }
             //topometricMapMsg.polygons[i].connectedPolygons=poly_list[i].connectedpolygons;
