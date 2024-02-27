@@ -437,6 +437,16 @@ class TopometricMapping{
                 } 
                 topometricMapMsg.polygons[i].connectedPolygons[cIndex]=polygonList->get(i)->connectedpolygons[cIndex]->index;
             }
+
+            topometricMapMsg.polygons[i].openings.resize(polygonList->get(i)->openings.size());
+            for(int oIndex=0;oIndex<polygonList->get(i)->openings.size();oIndex++){
+                auto op=polygonList->get(i)->openings[oIndex];
+                topometricMapMsg.polygons[i].openings[oIndex].start.x=op->start().x;
+                topometricMapMsg.polygons[i].openings[oIndex].start.y=op->start().y;
+                topometricMapMsg.polygons[i].openings[oIndex].end.y=op->end().x;
+                topometricMapMsg.polygons[i].openings[oIndex].end.y=op->end().y;
+                topometricMapMsg.polygons[i].openings[oIndex].label=op->label;
+            }
             //topometricMapMsg.polygons[i].connectedPolygons=poly_list[i].connectedpolygons;
 
         }
