@@ -143,31 +143,31 @@ class TopometricMapping{
         mapDebug->updateMap(bData,mapMsg.info.width,mapMsg.info.height,
                       mapMsg.info.resolution,mapMsg.info.origin.position.x,mapMsg.info.origin.position.y,mapMsg.info.origin.position.z,mapMsg.info.origin.position.z);
         Time T;
-        // ROS_INFO("g0");
+        //ROS_INFO("g0");
         gaps->clear();
         openingList->clear();
         polygonList->clear();
-        // ROS_INFO("g1");
+        //ROS_INFO("g1");
         transform->updateTransform(map,forceUpdate);
         timeVector[0].insert(timeVector[0].begin(),T.get_since());
-        // ROS_INFO("g2");
+        //ROS_INFO("g2");
         gaps->analysis(map,transform);
-        // ROS_INFO("g3");
+        //ROS_INFO("g3");
         openingList->updateDetections(map,transform,gaps);
-        // ROS_INFO("g4");
+        //ROS_INFO("g4");
         openingList->update(map);
-        // ROS_INFO("g5");
+        //ROS_INFO("g5");
         polygonList->updateIntersections(openingList,map);
         timeVector[1].insert(timeVector[1].begin(),T.get_since());
-        // ROS_INFO("g5.5");
+        //ROS_INFO("g5.5");
         polygonList->optimize(openingList,map);
         polygonList->mergPolygons(openingList,map);
-        // ROS_INFO("g6");
+        //ROS_INFO("g6");
         polygonList->generatePolygonArea(openingList);
         timeVector[2].insert(timeVector[2].begin(),T.get_since());
-        // ROS_INFO("g7");
+        //ROS_INFO("g7");
         polygonList->generateRobotPath(openingList,map,mapDebug);
-        // ROS_INFO("g8");
+        //ROS_INFO("g8");
         
         timeVector[3].insert(timeVector[3].begin(),T.get_since());
         vector<double> Td;
@@ -317,7 +317,7 @@ class TopometricMapping{
         }
         //if(c!=oldNodCount){
             oldNodCount=c;
-            ROS_INFO("Node count: %i",c);
+            //ROS_INFO("Node count: %i",c);
         //}
         pubTopoPoly.publish(pubPolyArray);
         
@@ -463,7 +463,7 @@ int main(int argc, char** argv){
     
     TopometricMapping topMapping;
 
-    ROS_INFO("Topology Gap Analysis Started.");
+    //ROS_INFO("Topology Gap Analysis Started.");
     
     ros::spin();
     

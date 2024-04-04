@@ -43,7 +43,7 @@ private:
     void correctOpening(opening*,MapHandler*);
     void getWalls(MapHandler*);
     void getAndFilterWall(MapHandler*, point_int, vector<point_int>*);
-    void findOpenings(MapHandler*, vector<opening>*);
+    void findOpenings(MapHandler*);
     point_int findIntersectionPoint(opening, opening);
     bool check_unnecessary_openings(openingDetection* o, MapHandler* map);
     //void fitNonFixedOpenings(MapHandler*);

@@ -266,11 +266,11 @@ void OpeningHandler::getAndFilterWall(MapHandler* map, point_int start, vector<p
         } 
     }
     if(newWall->wall.size()==2000000){
-        ROS_INFO("----");
-        ROS_INFO("%i, %i",start.x,start.y);
-        ROS_INFO("%i",map->getMap(start.x,start.y));
+        //ROS_INFO("----");
+        //ROS_INFO("%i, %i",start.x,start.y);
+        //ROS_INFO("%i",map->getMap(start.x,start.y));
         for(int i=0;i<20;i++){
-            ROS_INFO("%i, %i",wallPoints[i].x,wallPoints[i].y);
+            //ROS_INFO("%i, %i",wallPoints[i].x,wallPoints[i].y);
         }
     }
     if(occupideWall>objectFilterMaxStep){
@@ -296,13 +296,14 @@ void OpeningHandler::getAndFilterWall(MapHandler* map, point_int start, vector<p
 }
 
 void OpeningHandler::update(MapHandler* map){
-    vector<opening> dList=OpeningHandler::detectionList;
     
     //Find Openings
-    OpeningHandler::findOpenings(map,&dList);
-    
+    //ROS_INFO("h1");
+    OpeningHandler::findOpenings(map);
+    //ROS_INFO("h2");
     //Opening Optimization
     OpeningHandler::fixOverlapingPoints(map);
+    //ROS_INFO("h3");
     //Fix overlap
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
@@ -315,6 +316,7 @@ void OpeningHandler::update(MapHandler* map){
             OpeningHandler::fixOverlap(OpeningHandler::openingList[i],OpeningHandler::openingList[j],map);
         }
     }
+    //ROS_INFO("h4");
     //Remove openings that still overlap
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
@@ -341,12 +343,14 @@ void OpeningHandler::update(MapHandler* map){
             }
         }
     }
+    //ROS_INFO("h5");
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label>10) continue;
         if(OpeningHandler::openingList[i]->label==4) continue;
         if(!check_unnecessary_openings(OpeningHandler::openingList[i],map)) continue;
         OpeningHandler::remove(openingList[i]);
     }
+    //ROS_INFO("h6");
     for(int i=0;i<OpeningHandler::size();i++){
         if(OpeningHandler::openingList[i]->label==1){
             opening newOp=OpeningHandler::openingList[i]->getOpening();
@@ -361,34 +365,51 @@ void OpeningHandler::update(MapHandler* map){
         }
         
     }
+    //ROS_INFO("h7");
 }
 
-void OpeningHandler::findOpenings(MapHandler* map, vector<opening> *dList){
+void OpeningHandler::findOpenings(MapHandler* map){
+    vector<opening> dList=OpeningHandler::detectionList;
     vector<int> ignorList;
-    vector<int> emtyIgnorList;
-    for(int i=0; i<dList->size();i++){        
+    vector<int> emtyIgnorList;  
+    for(int i=0; i<dList.size();i++){      
+        
         opening op;
-        int selectedIndex=checkForPotensialOpening(map,i,dList,&ignorList,&op);
+        int selectedIndex=checkForPotensialOpening(map,i,&dList,&ignorList,&op);
 
         if(selectedIndex==-1){
-            if(!OpeningHandler::checkForWall(&dList->at(i),map) &&
-               !dList->at(i).connectedWallStart->emptyNeighbour &&
-               !dList->at(i).connectedWallEnd->emptyNeighbour)
-                OpeningHandler::add(dList->at(i));
-            dList->erase(dList->begin()+i);
+            if(!OpeningHandler::checkForWall(&dList.at(i),map) &&
+               !dList.at(i).connectedWallStart->emptyNeighbour &&
+               !dList.at(i).connectedWallEnd->emptyNeighbour)
+                OpeningHandler::add(dList.at(i));
+            dList.erase(dList.begin()+i);
             i--;
             continue;
         }
         
-        int testIndex=checkForPotensialOpening(map,selectedIndex,dList,&emtyIgnorList,NULL,true);
+        int testIndex=checkForPotensialOpening(map,selectedIndex,&dList,&emtyIgnorList,NULL,true);
         if(testIndex!=i){
             ignorList.push_back(selectedIndex);
             i--;
             continue;
         }
-        dList->erase(dList->begin()+std::max(i,selectedIndex));
-        dList->erase(dList->begin()+std::min(i,selectedIndex));
-        ignorList.push_back(selectedIndex);
+        // if(testIndex==i){
+        //     dList.erase(dList.begin()+std::max(i,selectedIndex));
+        //     dList.erase(dList.begin()+std::min(i,selectedIndex));
+        //     if(selectedIndex<i) i--;
+        //     i--;
+        // }
+        // else{
+        //     dList.erase(dList.begin()+i);
+        //     i--;
+        // }
+        
+        dList.erase(dList.begin()+std::max(i,selectedIndex));
+        dList.erase(dList.begin()+std::min(i,selectedIndex));
+        if(selectedIndex<i) i--;
+        i--;
+
+        ignorList.clear();
         OpeningHandler::add(op);
     }
 }
@@ -583,6 +604,8 @@ opening* OpeningHandler::getDetection(int index){
 }
 
 openingDetection* OpeningHandler::add(opening newOp){
+    if(newOp.start.x==-1||newOp.start.y==-1) return NULL;
+    if(newOp.connectedWallEnd==NULL || newOp.connectedWallStart==NULL) return NULL;
     openingDetection* opToAdd= new openingDetection;
     opToAdd->label=newOp.label;
     opToAdd->connect(true,newOp.connectedWallStart);
