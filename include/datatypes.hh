@@ -91,8 +91,8 @@ struct wall
 
 struct polygon;
 struct opening{
-    point_int start;
-    point_int end;
+    point_int start={-1,-1};
+    point_int end={-1,-1};
     int sideToMove=3;//1:start,2:end,3:none
     vector<point_int> occupiedPoints;
     int angle;

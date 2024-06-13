@@ -11,6 +11,7 @@ int numberOfDir=4;
 bool forceUpdate=false;
 
 //Opening Settings
+int minFrontier=4;
 int searchLenghtOverlap=10;
 
 //Polygon Settings
@@ -67,6 +68,8 @@ void load_config_file(const std::string &file_path) {
             optimizIntersections = value=="true"||value=="True"||value=="1";
         }else if (key == "dw") {
             dw = std::stod(value);
+        }else if (key == "minFrontier") {
+            minFrontier = std::stoi(value);
         }else if (key == "searchLenghtOverlap") {
             searchLenghtOverlap = std::stoi(value);
         }else if (key == "optimizationSteps") {
