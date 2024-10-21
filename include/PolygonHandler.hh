@@ -8,11 +8,10 @@ using namespace std;
 class PolygonHandler
 {
 public:
-    PolygonHandler();
+    PolygonHandler(int minGroupSize, int polygonRez, int voronoiRez, int minimumDesendingSteps, double dw, double minDistToCenter, double maxPenalty, double polygonMergingDist, bool optimizIntersections, bool polygonMerging);
     ~PolygonHandler();
     void updateIntersections(OpeningHandler*,MapHandler*);
     void optimize(OpeningHandler*,MapHandler*);
-    void mergPolygons(OpeningHandler*,MapHandler*);
     void getPathways(OpeningHandler*);
     void generatePolygonArea(OpeningHandler*);
     void generateRobotPath(OpeningHandler*,MapHandler*, MapHandler*);
@@ -25,6 +24,19 @@ public:
     void updateIndex();
 
 private:
+    int minGroupSize;
+    int polygonRez;
+    int voronoiRez;
+    int minimumDesendingSteps;
+
+    double dw;
+    double minDistToCenter;
+    double maxPenalty;
+    double polygonMergingDist;
+    
+    bool optimizIntersections;
+    bool polygonMerging;
+
     vector<polygon*> polygonList; 
     polygon* creatIntersection(OpeningHandler*,openingDetection*);
     void creatPathway(OpeningHandler*,openingDetection*);

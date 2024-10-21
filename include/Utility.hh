@@ -6,7 +6,6 @@
 #include <sys/time.h>
 
 #include "datatypes.hh"
-#include "GetConfig.hh"
 #include <nav_msgs/OccupancyGrid.h>
 #include <jsk_recognition_msgs/PolygonArray.h>
 #include <geometry_msgs/PolygonStamped.h>

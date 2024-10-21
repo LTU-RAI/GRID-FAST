@@ -1,7 +1,8 @@
 #include "Utility.hh"
 #include "MapTransform.hh"
 
-MapTransform::MapTransform(){
+MapTransform::MapTransform(int numberOfDir){
+    MapTransform::numberOfDir=numberOfDir;
     MapTransform::previusMapSizeX=0;
     MapTransform::previusMapSizeY=0;
     MapTransform::mapTransformList.resize(numberOfDir);

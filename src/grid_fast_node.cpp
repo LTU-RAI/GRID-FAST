@@ -4,6 +4,8 @@
 #include "OpeningHandler.hh"
 #include "PolygonHandler.hh"
 #include "Utility.hh"
+#include <algorithm>
+#include <new>
 #include <string>
 
 class TopometricMapping {
@@ -40,12 +42,69 @@ private:
   vector<vector<double>> timeVector;
   Time tFromS;
 
+  // Scan Settings
+  int minGroupSize;
+  int cfilterSize;
+  int objectFilterMaxStep;
+  int numberOfDir;
+  bool forceUpdate;
+
+  // Opening Settings
+  int minFrontier;
+
+  // Polygon Settings
+  bool optimizIntersections;
+  double dw;
+  int minimumDesendingSteps;
+  double minDistToCenter;
+  double maxPenalty;
+  int polygonRez;
+  bool polygonMerging;
+  double polygonMergingDist;
+
+  // Robot Path Settings
+  int voronoiRez;
+
+  // Map Settings
+  string mapFrame;
+
+  // Debugging
+  bool show_removed_openings = false;
+
 public:
   // setup
   TopometricMapping() {
-    std::string config_file_path =
-        ros::package::getPath("grid_fast") + "/config/settings.conf";
-    load_config_file(config_file_path);
+    // get parameters
+    ros::NodeHandle nh_priv("~");
+    mapFrame = nh_priv.param("map_frame", string("map"));
+    minGroupSize = nh_priv.param("min_gap_size", 3);
+    cfilterSize = nh_priv.param("unknown_cells_filter", 0);
+    objectFilterMaxStep = nh_priv.param("object_filter_max_steps", 0);
+    numberOfDir = nh_priv.param("number_of_scanning_direction", 4);
+    forceUpdate = nh_priv.param("force_map_transform_update", false);
+    minFrontier = nh_priv.param("min_frontier_size", -1);
+    optimizIntersections = nh_priv.param("optimize_intersections", true);
+    dw = nh_priv.param("dw", 1);
+    minDistToCenter = nh_priv.param("opt_min_distans_to_center", 0.0);
+    maxPenalty = nh_priv.param("opt_max_penalty", 1e6);
+    polygonRez = nh_priv.param("polygon_downsampling", 1);
+    polygonMerging = nh_priv.param("merge_polygons", false);
+    polygonMergingDist = nh_priv.param("polygon_merge_dist", 0.0);
+    voronoiRez = nh_priv.param("voronoi_downsampling", 1);
+    show_removed_openings = nh_priv.param("show_removed_openings", false);
+
+    minGroupSize = max(minGroupSize, 2);
+    cfilterSize = max(cfilterSize, 0);
+    objectFilterMaxStep = max(objectFilterMaxStep, 0);
+    numberOfDir = max(numberOfDir, 2);
+    if (minFrontier < 0) {
+      minFrontier = minGroupSize;
+    }
+    polygonRez = max(polygonRez, 1);
+    polygonMergingDist = max(polygonMergingDist, 0.0);
+    voronoiRez = max(voronoiRez, 1);
+
+    // setup for subscribers and publisher
     subOccupancyMap =
         nh.subscribe("/map", 1, &TopometricMapping::updateMap, this);
     pubTopoMap =
@@ -67,6 +126,7 @@ public:
         nh.advertise<grid_fast::topometricMap>("/topometricMap", 5);
     service = nh.advertiseService(
         "creat_opening", &TopometricMapping::creatCustomOpenings, this);
+
     loadMemory();
   }
 
@@ -75,10 +135,15 @@ public:
     timeVector.resize(4);
     map = new MapHandler;
     mapDebug = new MapHandler;
-    transform = new MapTransform;
-    gaps = new GapHandler;
-    openingList = new OpeningHandler;
-    polygonList = new PolygonHandler;
+    transform = new MapTransform(numberOfDir);
+    gaps = new GapHandler(numberOfDir, cfilterSize, minGroupSize);
+    openingList =
+        new OpeningHandler(numberOfDir, minGroupSize, minFrontier,
+                           objectFilterMaxStep, show_removed_openings);
+    polygonList = new PolygonHandler(minGroupSize, polygonRez, voronoiRez,
+                                     minimumDesendingSteps, dw, minDistToCenter,
+                                     maxPenalty, polygonMergingDist,
+                                     optimizIntersections, polygonMerging);
   }
 
   // initialization of map message
@@ -155,42 +220,33 @@ public:
         mapMsg.info.origin.position.x, mapMsg.info.origin.position.y,
         mapMsg.info.origin.position.z, mapMsg.info.origin.position.z);
     Time T;
-    // ROS_INFO("g0");
+
     gaps->clear();
     openingList->clear();
     polygonList->clear();
-    // ROS_INFO("g1, %f",T.get_since());
+
     transform->updateTransform(map, forceUpdate);
     timeVector[0].insert(timeVector[0].begin(), T.get_since());
-    // ROS_INFO("g2, %f",T.get_since());
+
     gaps->analysis(map, transform);
-    // ROS_INFO("g3, %f",T.get_since());
+
     openingList->updateDetections(map, transform, gaps);
-    // ROS_INFO("g4, %f",T.get_since());
+
     openingList->update(map);
-    // ROS_INFO("g5, %f",T.get_since());
+
     polygonList->updateIntersections(openingList, map);
     timeVector[1].insert(timeVector[1].begin(), T.get_since());
-    // ROS_INFO("g5.5, %f",T.get_since());
+
     polygonList->optimize(openingList, map);
-    polygonList->mergPolygons(openingList, map);
-    // ROS_INFO("g6, %f",T.get_since());
+
     polygonList->generatePolygonArea(openingList);
     timeVector[2].insert(timeVector[2].begin(), T.get_since());
-    // ROS_INFO("g7, %f",T.get_since());
+
     polygonList->generateRobotPath(openingList, map, mapDebug);
-    // ROS_INFO("g8, %f",T.get_since());
 
     timeVector[3].insert(timeVector[3].begin(), T.get_since());
     vector<double> Td;
-    // std::ofstream file("/home/scott/prob/GFOut.txt", std::ios::app);
 
-    // if (file.is_open()) {
-    //     // Append the values to the file.
-    //     file << tFromS.get_since() << "," << timeVector[3][0] << std::endl;
-
-    //     file.close();
-    // }
     Td.resize(timeVector.size());
     for (int i1 = 0; i1 < timeVector.size(); i1++) {
       Td[i1] = 0;
@@ -199,7 +255,6 @@ public:
       for (int i2 = 0; i2 < timeVector[i1].size(); i2++) {
         Td[i1] += timeVector[i1][i2];
       }
-      // Td[i1]=Td[i1]/timeVector[i1].size();
       Td[i1] = timeVector[i1].back();
     }
 
@@ -249,7 +304,7 @@ public:
       }
     }
     jsk_recognition_msgs::PolygonArray pubPolyArray_old;
-    pubPolyArray_old.header.frame_id = "map";
+    pubPolyArray_old.header.frame_id = mapFrame;
     pubPolyArray_old.header.stamp = ros::Time::now();
     pubPolyArray_old.polygons.resize(pubOpList.size());
     pubPolyArray_old.labels.resize(pubOpList.size());
@@ -275,7 +330,7 @@ public:
       point nSide = {side.x / (16 * l), side.y / (16 * l)};
       point nNorm = {-nSide.y, nSide.x};
       geometry_msgs::PolygonStamped p;
-      p.header.frame_id = "map";
+      p.header.frame_id = mapFrame;
       p.header.stamp = ros::Time::now();
       p.polygon.points.resize(7);
       p.polygon.points[0].x = (op.start.x - MapOrigenX) * resolution;
@@ -325,7 +380,7 @@ public:
     pubTopoPoly_debug.publish(pubPolyArray_old);
 
     jsk_recognition_msgs::PolygonArray pubPolyArray;
-    pubPolyArray.header.frame_id = "map";
+    pubPolyArray.header.frame_id = mapFrame;
     pubPolyArray.header.stamp = ros::Time::now();
     pubPolyArray.polygons.resize(polygonList->size());
     pubPolyArray.labels.resize(polygonList->size());
@@ -356,11 +411,11 @@ public:
     }
     visualization_msgs::MarkerArray msgRobotPath;
     msgRobotPath.markers.resize(1 + robotPathList.size());
-    msgRobotPath.markers[0].header.frame_id = "map";
+    msgRobotPath.markers[0].header.frame_id = mapFrame;
     msgRobotPath.markers[0].header.stamp = ros::Time::now();
     msgRobotPath.markers[0].action = msgRobotPath.markers[0].DELETEALL;
     for (int i = 1; i < robotPathList.size() + 1; i++) {
-      msgRobotPath.markers[i].header.frame_id = "map";
+      msgRobotPath.markers[i].header.frame_id = mapFrame;
       msgRobotPath.markers[i].header.stamp = ros::Time::now();
       msgRobotPath.markers[i].ns = "robotPathList";
       msgRobotPath.markers[i].id = i;
@@ -396,12 +451,12 @@ public:
 
     visualization_msgs::MarkerArray pDebugg;
     pDebugg.markers.resize(1 + polygonList->size());
-    pDebugg.markers[0].header.frame_id = "map";
+    pDebugg.markers[0].header.frame_id = mapFrame;
     pDebugg.markers[0].header.stamp = ros::Time::now();
     pDebugg.markers[0].action = pDebugg.markers[0].DELETEALL;
     for (int i = 1; i < polygonList->size() + 1; i++) {
       polygon *p = polygonList->get(i - 1);
-      pDebugg.markers[i].header.frame_id = "map";
+      pDebugg.markers[i].header.frame_id = mapFrame;
       pDebugg.markers[i].header.stamp = ros::Time::now();
       pDebugg.markers[i].ns = "pDebugg";
       pDebugg.markers[i].id = i;
@@ -492,11 +547,9 @@ public:
 
 int main(int argc, char **argv) {
 
-  ros::init(argc, argv, "topology_gap_analysis");
+  ros::init(argc, argv, "grid_fast");
 
   TopometricMapping topMapping;
-
-  // ROS_INFO("Topology Gap Analysis Started.");
 
   ros::spin();
 

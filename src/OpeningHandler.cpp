@@ -1,8 +1,12 @@
 #include "Utility.hh"
 #include "OpeningHandler.hh"
 
-OpeningHandler::OpeningHandler(){
-
+OpeningHandler::OpeningHandler(int numberOfDir, int minGroupSize, int minFrontier, int objectFilterMaxStep, bool show_removed_openings){
+    OpeningHandler::numberOfDir=numberOfDir;
+    OpeningHandler::minGroupSize=minGroupSize;
+    OpeningHandler::minFrontier=minFrontier;
+    OpeningHandler::objectFilterMaxStep=objectFilterMaxStep;
+    OpeningHandler::show_removed_openings=show_removed_openings;
 }
 
 OpeningHandler::~OpeningHandler(){
@@ -35,13 +39,6 @@ void OpeningHandler::checkForDetection(int angleIndex, int row, int index, MapHa
     for(int direction=0;direction<2;direction++){
         vector<scanGroup*> connectedGaps=direction?gap->prevGroup:gap->nextGroup;
         if(connectedGaps.size()<2) continue;
-        for(int i=0;i<connectedGaps.size();i++){
-            if(!OpeningHandler::checkDepth(connectedGaps[i],direction,0)){
-                connectedGaps.erase(connectedGaps.begin()+i);
-                i--;
-            }
-        }
-        if(connectedGaps.size()<2) continue;
 
         for(int i=0;i<connectedGaps.size();i++){
             opening newOp;
@@ -72,20 +69,6 @@ void OpeningHandler::checkForDetection(int angleIndex, int row, int index, MapHa
         }
 
     }
-}
-
-bool OpeningHandler::checkDepth(scanGroup* gap, bool direction, int currentDepth){
-    if(currentDepth>=minCoridorSize) return true;
-    currentDepth++;
-
-    vector<scanGroup*>* connectedGaps=direction?&gap->prevGroup:&gap->nextGroup;
-
-    for(int i=0;i<connectedGaps->size();i++){
-        if(OpeningHandler::checkDepth(connectedGaps->at(i),direction,currentDepth))
-            return true;
-    }
-
-    return false;
 }
 
 opening OpeningHandler::rotateOpening(opening op, int angleIndex, MapTransform* transform){
@@ -744,7 +727,6 @@ void OpeningHandler::fixOverlap(openingDetection *o1,openingDetection *o2, MapHa
             int connectedIndex1=connectedWall1->index;
             int connectedIndex2=connectedWall2->index;
             int connectL=connectedWall1->parent->getDistans(connectedIndex1,connectedIndex2);
-            //if(connectL>searchLenghtOverlap) continue;
             if(conection_lenght[sides]!=-1 && connectL>=conection_lenght[sides]) continue;
             conection_lenght[sides]=connectL;
             moveEndO2[sides]=dir;

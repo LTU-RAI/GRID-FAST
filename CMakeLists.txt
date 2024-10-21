@@ -123,7 +123,6 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  INCLUDE_DIRS config
   CATKIN_DEPENDS message_runtime
 #  LIBRARIES mapping
 #  CATKIN_DEPENDS roscpp rospy std_msgs
