@@ -78,8 +78,8 @@ public:
     ros::NodeHandle nh_priv("~");
     mapFrame = nh_priv.param("map_frame", string("map"));
     minGroupSize = nh_priv.param("min_gap_size", 3);
-    cfilterSize = nh_priv.param("unknown_cells_filter", 0);
-    objectFilterMaxStep = nh_priv.param("object_filter_max_steps", 0);
+    cfilterSize = nh_priv.param("unknown_cells_filter", 1);
+    objectFilterMaxStep = nh_priv.param("object_filter_max_steps", 10);
     numberOfDir = nh_priv.param("number_of_scanning_direction", 4);
     forceUpdate = nh_priv.param("force_map_transform_update", false);
     minFrontier = nh_priv.param("min_frontier_size", -1);
@@ -108,22 +108,22 @@ public:
     subOccupancyMap =
         nh.subscribe("/map", 1, &TopometricMapping::updateMap, this);
     pubTopoMap =
-        nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_filterd", 5);
-    pubdMap = nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_d", 5);
+        nh.advertise<nav_msgs::OccupancyGrid>("/grid_fast/map_filtered", 5);
+    pubdMap = nh.advertise<nav_msgs::OccupancyGrid>("/grid_fast/map_d", 5);
     pubOpeningList =
-        nh.advertise<grid_fast::opening_list>("/opening_list_int", 5);
+        nh.advertise<grid_fast::opening_list>("/grid_fast/opening_list_int", 5);
     pubMapDebug =
-        nh.advertise<nav_msgs::OccupancyGrid>("/topology_map_debug", 5);
+        nh.advertise<nav_msgs::OccupancyGrid>("/grid_fast/map_debug", 5);
     pubTopoPoly_debug = nh.advertise<jsk_recognition_msgs::PolygonArray>(
-        "/topology_poly_opening", 5);
+        "/grid_fast/openings", 5);
     pubRobotPath = nh.advertise<visualization_msgs::MarkerArray>(
-        "/topology_robot_path", 5);
-    pubPolyDebug =
-        nh.advertise<visualization_msgs::MarkerArray>("/polyDebyg", 5);
-    pubTopoPoly =
-        nh.advertise<jsk_recognition_msgs::PolygonArray>("/topology_poly", 5);
+        "/grid_fast/robot_path", 5);
+    pubPolyDebug = nh.advertise<visualization_msgs::MarkerArray>(
+        "/grid_fast/polyDebyg", 5);
+    pubTopoPoly = nh.advertise<jsk_recognition_msgs::PolygonArray>(
+        "/grid_fast/regions", 5);
     pubTopometricMap =
-        nh.advertise<grid_fast::topometricMap>("/topometricMap", 5);
+        nh.advertise<grid_fast::topometricMap>("/grid_fast/map", 5);
     service = nh.advertiseService(
         "creat_opening", &TopometricMapping::creatCustomOpenings, this);
 

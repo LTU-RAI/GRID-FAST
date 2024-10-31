@@ -20,4 +20,7 @@
    <param name="optimize_intersections" value="true" />
    <param name="opt_min_distans_to_center" value="0" />      
   </node> 
+  
+  <!--- Run Rviz-->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find grid_fast)/launch/include/grid_fast.rviz" />
 </launch>
