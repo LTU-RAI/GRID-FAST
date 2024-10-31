@@ -8,7 +8,7 @@ This ROS package generates topometric maps by detecting intersections in 2D grid
 
 This ROS package is based on the following article:
 
-**GRID-FAST: A Grid-based Intersection Detection for Fast Semantic Topometric Mapping** [[JIRS](https://link.springer.com/article/10.1007/s10846-024-02180-6#citeas)] [[ArXiv](https://arxiv.org/abs/2406.11635)]
+**GRID-FAST: A Grid-based Intersection Detection for Fast Semantic Topometric Mapping** [[JIRS](https://link.springer.com/article/10.1007/s10846-024-02180-6)] [[ArXiv](https://arxiv.org/abs/2406.11635)]
 
 ```
 @Article{Fredriksson2024a,
