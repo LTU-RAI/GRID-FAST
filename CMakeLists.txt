@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(grid_fast)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_BUILD_TYPE Release)
@@ -122,7 +123,6 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  INCLUDE_DIRS config
   CATKIN_DEPENDS message_runtime
 #  LIBRARIES mapping
 #  CATKIN_DEPENDS roscpp rospy std_msgs

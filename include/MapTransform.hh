@@ -6,7 +6,7 @@
 class MapTransform
 {
 public:
-    MapTransform();
+    MapTransform(int numberOfDir);
     ~MapTransform();
     void updateTransform(MapHandler*, bool forceUpdate=false);
     int getMaptransformSizeY(int);
@@ -16,6 +16,7 @@ public:
     void setMapAtTransform(int,int,int,int,MapHandler*);
     point_int getMapIndexTransform(int,int,int);
 private:
+    int numberOfDir;
     int previusMapSizeX,previusMapSizeY;
     vector<mapTransformMap> mapTransformList;
     void generateMapTransform(int,int);

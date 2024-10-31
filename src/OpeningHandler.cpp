@@ -1,8 +1,12 @@
 #include "Utility.hh"
 #include "OpeningHandler.hh"
 
-OpeningHandler::OpeningHandler(){
-
+OpeningHandler::OpeningHandler(int numberOfDir, int minGroupSize, int minFrontier, int objectFilterMaxStep, bool show_removed_openings){
+    OpeningHandler::numberOfDir=numberOfDir;
+    OpeningHandler::minGroupSize=minGroupSize;
+    OpeningHandler::minFrontier=minFrontier;
+    OpeningHandler::objectFilterMaxStep=objectFilterMaxStep;
+    OpeningHandler::show_removed_openings=show_removed_openings;
 }
 
 OpeningHandler::~OpeningHandler(){
@@ -35,13 +39,6 @@ void OpeningHandler::checkForDetection(int angleIndex, int row, int index, MapHa
     for(int direction=0;direction<2;direction++){
         vector<scanGroup*> connectedGaps=direction?gap->prevGroup:gap->nextGroup;
         if(connectedGaps.size()<2) continue;
-        for(int i=0;i<connectedGaps.size();i++){
-            if(!OpeningHandler::checkDepth(connectedGaps[i],direction,0)){
-                connectedGaps.erase(connectedGaps.begin()+i);
-                i--;
-            }
-        }
-        if(connectedGaps.size()<2) continue;
 
         for(int i=0;i<connectedGaps.size();i++){
             opening newOp;
@@ -72,20 +69,6 @@ void OpeningHandler::checkForDetection(int angleIndex, int row, int index, MapHa
         }
 
     }
-}
-
-bool OpeningHandler::checkDepth(scanGroup* gap, bool direction, int currentDepth){
-    if(currentDepth>=minCoridorSize) return true;
-    currentDepth++;
-
-    vector<scanGroup*>* connectedGaps=direction?&gap->prevGroup:&gap->nextGroup;
-
-    for(int i=0;i<connectedGaps->size();i++){
-        if(OpeningHandler::checkDepth(connectedGaps->at(i),direction,currentDepth))
-            return true;
-    }
-
-    return false;
 }
 
 opening OpeningHandler::rotateOpening(opening op, int angleIndex, MapTransform* transform){
@@ -393,6 +376,12 @@ void OpeningHandler::findOpenings(MapHandler* map){
             i--;
             continue;
         }
+        
+        dList.erase(dList.begin()+std::max(i,selectedIndex));
+        dList.erase(dList.begin()+std::min(i,selectedIndex));
+        if(selectedIndex<i) i--;
+        i--;
+
         // if(testIndex==i){
         //     dList.erase(dList.begin()+std::max(i,selectedIndex));
         //     dList.erase(dList.begin()+std::min(i,selectedIndex));
@@ -403,11 +392,6 @@ void OpeningHandler::findOpenings(MapHandler* map){
         //     dList.erase(dList.begin()+i);
         //     i--;
         // }
-        
-        dList.erase(dList.begin()+std::max(i,selectedIndex));
-        dList.erase(dList.begin()+std::min(i,selectedIndex));
-        if(selectedIndex<i) i--;
-        i--;
 
         ignorList.clear();
         OpeningHandler::add(op);
@@ -672,6 +656,21 @@ bool OpeningHandler::intersectOpenings(openingDetection *o1,openingDetection *o2
     if(o1->start()==o2->end()) return true;
     if(o1->end()==o2->start()) return true;     
 
+    // if(!(p1Min.x<=p2Max.x && p1Max.x>=p2Min.x &&
+    //      p1Min.y<=p2Max.y && p1Max.y>=p2Min.y)) return false;
+    // if(o1->end()==o2->end()) return true;
+    // if(o1->start()==o2->start()) return true;
+    // if(o1->start()==o2->end()) return true;
+    // if(o1->end()==o2->start()) return true;
+    // double l1 = dist(o1->start(),o1->end());
+    // double l2 = dist(o2->start(),o2->end());
+    // point n1={((o1->end().x-o1->start().x)/l1)*l, ((o1->end().y-o1->start().y)/l1)*l};
+    // point n2={((o2->end().x-o2->start().x)/l2)*l, ((o2->end().y-o2->start().y)/l2)*l};
+    // point A={o1->start().x-n1.x,o1->start().y-n1.y}, B={o1->end().x+n1.x,o1->end().y+n1.y};
+    // point C={o2->start().x-n2.x,o2->start().y-n2.y}, D={o2->end().x+n2.x,o2->end().y+n2.y}; 
+    // return OpeningHandler::ccw(A,C,D)!=OpeningHandler::ccw(B,C,D) &&
+    //        OpeningHandler::ccw(A,B,C)!=OpeningHandler::ccw(A,B,D);
+
     vector<point_int> p1,p2;
     p1= OpeningHandler::generateOpeningPoints(o1);
     p2= OpeningHandler::generateOpeningPoints(o2);
@@ -728,7 +727,6 @@ void OpeningHandler::fixOverlap(openingDetection *o1,openingDetection *o2, MapHa
             int connectedIndex1=connectedWall1->index;
             int connectedIndex2=connectedWall2->index;
             int connectL=connectedWall1->parent->getDistans(connectedIndex1,connectedIndex2);
-            //if(connectL>searchLenghtOverlap) continue;
             if(conection_lenght[sides]!=-1 && connectL>=conection_lenght[sides]) continue;
             conection_lenght[sides]=connectL;
             moveEndO2[sides]=dir;

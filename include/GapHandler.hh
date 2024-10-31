@@ -8,7 +8,7 @@ using namespace std;
 class GapHandler
 {
 public:
-    GapHandler();
+    GapHandler(int numberOfDir, int cfilterSize, int minGroupSize);
     ~GapHandler();
     void analysis(MapHandler*,MapTransform*);
     int getSizeRows(int);
@@ -21,7 +21,11 @@ public:
     void clear();
 
 private:
+    int cfilterSize;
+    int numberOfDir; 
+    int minGroupSize;
     int size;
+    
     vector<gapList> gaps;
     vector<point_int> toBeFilterdPoints;
     vector<int> toBeFilterdValues;

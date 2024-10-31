@@ -1,12 +1,26 @@
 <launch>
-
-     <node pkg="grid_fast" type="grid_fast_node" name="grid_fast" respawn="false" output="screen"> 
-     
-     </node> 
-
-     <!--node pkg="topology_mapping" type="topology_mapping_node" name="topology_mapping" output="screen"> 
-     
-     </node--> 
-
-
+  <node pkg="grid_fast" type="grid_fast_node" name="grid_fast" respawn="true" output="screen">
+   <!-- Input -->
+   <!--remap from="map" to="map_topic" /-->
+   
+   <!-- Output Settings -->
+   <param name="map_frame" value="map" />
+   <param name="polygon_downsampling" value="1" />
+   <param name="voronoi_downsampling" value="1" />  
+   
+   <!-- Gap Settings -->
+   <param name="number_of_scanning_direction" value="4" />
+   <param name="min_gap_size" value="3" />
+   <param name="unknown_cells_filter" value="1" />
+   <param name="object_filter_max_steps" value="10" />
+   <param name="force_map_transform_update" value="false" />
+   <param name="min_frontier_size" value="-1" />
+   
+   <!-- Optimization Settings -->
+   <param name="optimize_intersections" value="true" />
+   <param name="opt_min_distans_to_center" value="0" />      
+  </node> 
+  
+  <!--- Run Rviz-->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find grid_fast)/launch/include/grid_fast.rviz" />
 </launch>

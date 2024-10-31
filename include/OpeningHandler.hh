@@ -10,7 +10,7 @@ class OpeningHandler
 {
 public:
     vector<opening> openingDebug;
-    OpeningHandler();
+    OpeningHandler(int numberOfDir, int minGroupSize, int minFrontier, int objectFilterMaxStep, bool show_removed_openings);
     ~OpeningHandler();
     void updateDetections(MapHandler*,MapTransform*,GapHandler*);
     void update(MapHandler*);
@@ -29,6 +29,12 @@ public:
     void removeCustomOpening(int id);
     int maxCustomOpeningId();
 private:
+    int numberOfDir;
+    int minGroupSize;
+    int minFrontier;
+    int objectFilterMaxStep;
+    bool show_removed_openings;
+
     vector<opening> detectionList;
     vector<opening> customOpeningList;
     vector<int> customOpeningIdList;
@@ -38,7 +44,6 @@ private:
     bool intersectOpenings(openingDetection*,openingDetection*);
     bool intersectOpenings(opening*,opening*);
     void checkForDetection(int,int,int,MapHandler*,MapTransform*,GapHandler*);
-    bool checkDepth(scanGroup*,bool,int);
     opening rotateOpening(opening,int,MapTransform*);
     void correctOpening(opening*,MapHandler*);
     void getWalls(MapHandler*);

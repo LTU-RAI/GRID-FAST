@@ -1,7 +1,10 @@
 #include "Utility.hh"
 #include "GapHandler.hh"
 
-GapHandler::GapHandler(){    
+GapHandler::GapHandler(int numberOfDir, int cfilterSize, int minGroupSize){
+    GapHandler::numberOfDir=numberOfDir;    
+    GapHandler::cfilterSize=cfilterSize;
+    GapHandler::minGroupSize=minGroupSize;
 }
 
 GapHandler::~GapHandler(){
