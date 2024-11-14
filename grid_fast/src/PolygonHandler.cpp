@@ -1,20 +1,21 @@
 #include "PolygonHandler.hh"
 #include "Utility.hh"
 
-PolygonHandler::PolygonHandler(int minGroupSize, int polygonRez, int voronoiRez, 
-                              int minimumDesendingSteps, double dw, double minDistToCenter, 
-                              double maxPenalty, double polygonMergingDist, 
-                              bool optimizIntersections, bool polygonMerging) {
-  PolygonHandler::minGroupSize=minGroupSize;
-  PolygonHandler::polygonRez=polygonRez;
-  PolygonHandler::voronoiRez=voronoiRez;
-  PolygonHandler::minimumDesendingSteps=minimumDesendingSteps;
-  PolygonHandler::dw=dw;
-  PolygonHandler::minDistToCenter=minDistToCenter;
-  PolygonHandler::maxPenalty=maxPenalty;
-  PolygonHandler::polygonMergingDist=polygonMergingDist;
-  PolygonHandler::optimizIntersections=optimizIntersections;
-  PolygonHandler::polygonMerging=polygonMerging;
+PolygonHandler::PolygonHandler(int minGroupSize, int polygonRez, int voronoiRez,
+                               int minimumDesendingSteps, double dw,
+                               double minDistToCenter, double maxPenalty,
+                               double polygonMergingDist,
+                               bool optimizIntersections, bool polygonMerging) {
+  PolygonHandler::minGroupSize = minGroupSize;
+  PolygonHandler::polygonRez = polygonRez;
+  PolygonHandler::voronoiRez = voronoiRez;
+  PolygonHandler::minimumDesendingSteps = minimumDesendingSteps;
+  PolygonHandler::dw = dw;
+  PolygonHandler::minDistToCenter = minDistToCenter;
+  PolygonHandler::maxPenalty = maxPenalty;
+  PolygonHandler::polygonMergingDist = polygonMergingDist;
+  PolygonHandler::optimizIntersections = optimizIntersections;
+  PolygonHandler::polygonMerging = polygonMerging;
 }
 
 PolygonHandler::~PolygonHandler() {}
@@ -90,7 +91,6 @@ polygon *PolygonHandler::creatIntersection(OpeningHandler *openingList,
     }
     // bad connection
     if (w.connectedtOpeningStart.size() > 0) {
-      ////////ROS_INFO("----------WARNING--------");
       openingList->disable(w.connectedtOpeningStart[0], 26);
     }
   }
@@ -650,9 +650,8 @@ bool PolygonHandler::optimizeIntersection(polygon *poly,
     double bestScore = -1;
     bestINdex = 0;
     for (int wallIndex = 0; wallIndex < walls[sideIndex].size() - 1;
-          wallIndex++) {
-      double d1 =
-          dist(walls[sideIndex][wallIndex]->position, targetOp1->end());
+         wallIndex++) {
+      double d1 = dist(walls[sideIndex][wallIndex]->position, targetOp1->end());
       double d2 =
           dist(walls[sideIndex][wallIndex + 1]->position, targetOp2->start());
       double score = d1 * d1 + d2 * d2;
@@ -665,9 +664,9 @@ bool PolygonHandler::optimizeIntersection(polygon *poly,
     targetOp1->connect(true, walls[sideIndex][bestINdex]);
     targetOp2->connect(false, walls[sideIndex][bestINdex + 1]);
     centerP.x += walls[sideIndex][bestINdex]->position.x +
-                  walls[sideIndex][bestINdex + 1]->position.x;
+                 walls[sideIndex][bestINdex + 1]->position.x;
     centerP.y += walls[sideIndex][bestINdex]->position.y +
-                  walls[sideIndex][bestINdex + 1]->position.y;
+                 walls[sideIndex][bestINdex + 1]->position.y;
     startPoints[sideIndex].resize(bestINdex + 1);
     for (int i = bestINdex; i >= 0; i--) {
       startPoints[sideIndex][bestINdex - i] = walls[sideIndex][i];
@@ -679,7 +678,7 @@ bool PolygonHandler::optimizeIntersection(polygon *poly,
           walls[sideIndex][bestINdex + 1 + i];
     }
   }
-  
+
   centerP.x = centerP.x / (poly->openings.size() * 2);
   centerP.y = centerP.y / (poly->openings.size() * 2);
   for (int sideIndex = 0; sideIndex < poly->openings.size(); sideIndex++) {
