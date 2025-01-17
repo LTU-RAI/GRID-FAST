@@ -30,11 +30,11 @@ If you use this ROS package in a scientific publication, please cite the paper.
 
 ## Installation
 
-1. Install jsk_visualization package`sudo apt install ros-noetic-jsk-visualization`
-2. Navigate to src folder in workspace `cd ~/catkin_ws/src`
-3. Clone the GitHub  to ros workspace: `git clone https://github.com/LTU-RAI/GRID-FAST.git`
-4. `cd ..`
-5. Build project: `catkin build grid_fast`
+1. Navigate to src folder in workspace `cd ~/ros2_ws/src`
+2. Clone the GitHub  to ros workspace: `git clone https://github.com/LTU-RAI/GRID-FAST.git`
+3. `cd ..`
+4. Build project: `colcon build --symlink-install --packages-up-to grid_fast`
+5. (Optional) Build Rviz2 plugin `colcon build --symlink-install --packages-up-to grid_fast_rviz`
 
 ## ROS Launch Files
 
@@ -66,7 +66,7 @@ If you use this ROS package in a scientific publication, please cite the paper.
 
 `polygon_downsampling` (default: `1`): This parameter controls the downsampling of points in the polygons used for visualization. The number of points is reduced by a factor of `1/X`, where `X` is the value of this parameter. A value of `1` means no downsampling, while higher values result in greater downsampling (fewer points).
 
-`voronoi_downsampling` (default: `1`): This parameter controls the reduction of points in the output paths of the skeleton map. The number of points is reduced by a factor of `1/X`, where `X` is the value of this parameter. A value of `1` means no downsampling, while higher values result in greater downsampling (fewer points).
+`voronoi_downsampling` (default: `4`): This parameter controls the reduction of points in the output paths of the skeleton map. The number of points is reduced by a factor of `1/X`, where `X` is the value of this parameter. A value of `1` means no downsampling, while higher values result in greater downsampling (fewer points).
 
 #### Subscribed Topics 
 
