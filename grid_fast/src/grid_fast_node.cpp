@@ -23,8 +23,6 @@
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
-// #include "grid_fast_msgs/srv/custom_opening.hpp"
-// #include "jsk_recognition_msgs/msg/polygon_array.hpp"
 class TopometricMapping : public rclcpp::Node {
 private:
   // Subscribers and Publishers
@@ -33,10 +31,6 @@ private:
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pubdMap;
   rclcpp::Publisher<grid_fast_msgs::msg::OpeningList>::SharedPtr pubOpeningList;
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pubMapDebug;
-  // rclcpp::Publisher<jsk_recognition_msgs::msg::PolygonArray>::SharedPtr
-  // pubTopoPolyDebug;
-  // rclcpp::Publisher<jsk_recognition_msgs::msg::PolygonArray>::SharedPtr
-  // pubTopoPoly;
   rclcpp::Publisher<grid_fast_msgs::msg::TopometricMap>::SharedPtr
       pubTopometricMap;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
@@ -134,7 +128,7 @@ public:
     this->declare_parameter<double>("polygon_merge_dist", 0.0);
     polygonMergingDist = this->get_parameter("polygon_merge_dist").as_double();
 
-    this->declare_parameter<int>("voronoi_downsampling", 1);
+    this->declare_parameter<int>("voronoi_downsampling", 4);
     voronoiRez = this->get_parameter("voronoi_downsampling").as_int();
 
     this->declare_parameter<bool>("show_removed_openings", false);
@@ -165,16 +159,10 @@ public:
         "/grid_fast/opening_list_int", 5);
     pubMapDebug = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
         "/grid_fast/map_debug", 5);
-    // pubTopoPolyDebug =
-    // this->create_publisher<jsk_recognition_msgs::msg::PolygonArray>("/grid_fast/openings",
-    // 5);
     pubRobotPath = this->create_publisher<visualization_msgs::msg::MarkerArray>(
         "/grid_fast/robot_path", 5);
     pubPolyDebug = this->create_publisher<visualization_msgs::msg::MarkerArray>(
         "/grid_fast/polyDebug", 5);
-    // pubTopoPoly =
-    // this->create_publisher<jsk_recognition_msgs::msg::PolygonArray>("/grid_fast/regions",
-    // 5);
     pubTopometricMap =
         this->create_publisher<grid_fast_msgs::msg::TopometricMap>(
             "/grid_fast/topometric_map", 5);
@@ -278,38 +266,28 @@ public:
     gaps->clear();
     openingList->clear();
     polygonList->clear();
-    /*RCLCPP_INFO(this->get_logger(), "g0");*/
     transform->updateTransform(map, forceUpdate);
     timeVector[0].insert(timeVector[0].begin(), T.get_since());
 
-    /*RCLCPP_INFO(this->get_logger(), "g1");*/
     gaps->analysis(map, transform);
 
-    /*RCLCPP_INFO(this->get_logger(), "g2");*/
     openingList->updateDetections(map, transform, gaps);
 
-    /*RCLCPP_INFO(this->get_logger(), "g3");*/
     openingList->update(map);
 
-    /*RCLCPP_INFO(this->get_logger(), "g4");*/
     polygonList->updateIntersections(openingList, map);
     timeVector[1].insert(timeVector[1].begin(), T.get_since());
 
-    /*RCLCPP_INFO(this->get_logger(), "g5");*/
     polygonList->optimize(openingList, map);
 
-    /*RCLCPP_INFO(this->get_logger(), "g6");*/
     polygonList->generatePolygonArea(openingList);
     timeVector[2].insert(timeVector[2].begin(), T.get_since());
 
-    /*RCLCPP_INFO(this->get_logger(), "g7");*/
     polygonList->generateRobotPath(openingList, map, mapDebug);
 
-    /*RCLCPP_INFO(this->get_logger(), "g8");*/
     timeVector[3].insert(timeVector[3].begin(), T.get_since());
     std::vector<double> Td;
 
-    // RCLCPP_INFO(this->get_logger(), "g9");
     Td.resize(timeVector.size());
     for (size_t i1 = 0; i1 < timeVector.size(); i1++) {
       Td[i1] = 0;

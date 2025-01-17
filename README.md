@@ -30,10 +30,11 @@ If you use this ROS package in a scientific publication, please cite the paper.
 
 ## Installation
 
-1. Navigate to src folder in workspace `cd ~/catkin_ws/src`
+1. Navigate to src folder in workspace `cd ~/ros2_ws/src`
 2. Clone the GitHub  to ros workspace: `git clone https://github.com/LTU-RAI/GRID-FAST.git`
 3. `cd ..`
-4. Build project: `catkin build grid_fast`
+4. Build project: `colcon build --symlink-install --packages-up-to grid_fast`
+5. (Optional) Build Rviz2 plugin `colcon build --symlink-install --packages-up-to grid_fast_rviz`
 
 ## ROS Launch Files
 
