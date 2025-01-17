@@ -66,7 +66,7 @@ struct wall {
 
   void getIndex(int *index) {
     if (*index < 0)
-      *index = int(wall.size()) - (-*index) % int(wall.size());
+      *index = int(wall.size()) - (abs(*index)) % int(wall.size());
     if (*index >= wall.size())
       *index = *index % int(wall.size());
   }

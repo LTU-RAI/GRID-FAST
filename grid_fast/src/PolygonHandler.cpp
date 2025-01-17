@@ -100,7 +100,7 @@ polygon *PolygonHandler::creatIntersection(OpeningHandler *openingList,
     }
     return NULL;
   }
-  newPoly.label = 30;
+  newPoly.label = AREA_INTERSECTION;
   return PolygonHandler::add(newPoly);
 }
 
@@ -131,11 +131,11 @@ void PolygonHandler::creatPathway(OpeningHandler *openingList,
 
   if (w.connectedtOpeningStart[0] != targetOp) {
     newPoly.openings.push_back(w.connectedtOpeningStart[0]);
-    newPoly.label = 64;
+    newPoly.label = AREA_PATHWAY;
     if (newPoly.openings[0]->label == 5 || newPoly.openings[1]->label == 5)
-      newPoly.label = 52;
+      newPoly.label = AREA_PATH_TO_FRONTER;
   } else {
-    newPoly.label = 41;
+    newPoly.label = AREA_DEAD_END;
   }
   polygon *poly = PolygonHandler::add(newPoly);
   poly->connectedpolygons.resize(poly->openings.size());

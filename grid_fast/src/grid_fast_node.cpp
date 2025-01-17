@@ -5,7 +5,12 @@
 #include "PolygonHandler.hh"
 #include "Time.hpp"
 #include "Utility.hh"
+#include "datatypes.hh"
 #include <algorithm>
+#include <complex>
+#include <grid_fast_msgs/msg/detail/point2_d_int__struct.hpp>
+#include <grid_fast_msgs/msg/detail/point2_d_int_list__struct.hpp>
+#include <memory>
 #include <new>
 #include <string>
 
@@ -106,6 +111,10 @@ public:
     optimizIntersections =
         this->get_parameter("optimize_intersections").as_bool();
 
+    this->declare_parameter<int>("minimum_desending_steps", 5.0);
+    minimumDesendingSteps =
+        this->get_parameter("minimum_desending_steps").as_int();
+
     this->declare_parameter<double>("dw", 1.0);
     dw = this->get_parameter("dw").as_double();
 
@@ -141,7 +150,7 @@ public:
     }
     polygonRez = std::max(polygonRez, 1);
     polygonMergingDist = std::max(polygonMergingDist, 0.0);
-    voronoiRez = std::max(voronoiRez, 1);
+    voronoiRez = std::max(voronoiRez, 4);
 
     // Setup subscribers and publishers
     subOccupancyMap = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
@@ -168,7 +177,7 @@ public:
     // 5);
     pubTopometricMap =
         this->create_publisher<grid_fast_msgs::msg::TopometricMap>(
-            "/grid_fast/map", 5);
+            "/grid_fast/topometric_map", 5);
 
     // service = this->create_service<grid_fast::srv::CustomOpening>(
     //     "creat_opening",
@@ -239,6 +248,11 @@ public:
   /*  res->id = newId;*/
   /*  return true;*/
   /*}*/
+  template <typename... Args>
+  void log(const std::string &format, Args &&...args) {
+    RCLCPP_INFO(this->get_logger(), format.c_str(),
+                std::forward<Args>(args)...);
+  }
 
   void updateMap(const nav_msgs::msg::OccupancyGrid::SharedPtr mapMsg) {
     std::vector<int> data;
@@ -264,29 +278,38 @@ public:
     gaps->clear();
     openingList->clear();
     polygonList->clear();
-
+    /*RCLCPP_INFO(this->get_logger(), "g0");*/
     transform->updateTransform(map, forceUpdate);
     timeVector[0].insert(timeVector[0].begin(), T.get_since());
 
+    /*RCLCPP_INFO(this->get_logger(), "g1");*/
     gaps->analysis(map, transform);
 
+    /*RCLCPP_INFO(this->get_logger(), "g2");*/
     openingList->updateDetections(map, transform, gaps);
 
+    /*RCLCPP_INFO(this->get_logger(), "g3");*/
     openingList->update(map);
 
+    /*RCLCPP_INFO(this->get_logger(), "g4");*/
     polygonList->updateIntersections(openingList, map);
     timeVector[1].insert(timeVector[1].begin(), T.get_since());
 
+    /*RCLCPP_INFO(this->get_logger(), "g5");*/
     polygonList->optimize(openingList, map);
 
+    /*RCLCPP_INFO(this->get_logger(), "g6");*/
     polygonList->generatePolygonArea(openingList);
     timeVector[2].insert(timeVector[2].begin(), T.get_since());
 
+    /*RCLCPP_INFO(this->get_logger(), "g7");*/
     polygonList->generateRobotPath(openingList, map, mapDebug);
 
+    /*RCLCPP_INFO(this->get_logger(), "g8");*/
     timeVector[3].insert(timeVector[3].begin(), T.get_since());
     std::vector<double> Td;
 
+    // RCLCPP_INFO(this->get_logger(), "g9");
     Td.resize(timeVector.size());
     for (size_t i1 = 0; i1 < timeVector.size(); i1++) {
       Td[i1] = 0;
@@ -301,6 +324,32 @@ public:
     RCLCPP_INFO(this->get_logger(), "Time: %f, %f, %f, %f", Td[0], Td[1], Td[2],
                 Td[3]);
     pubMap();
+  }
+
+  grid_fast_msgs::msg::Point2DIntList
+  get_polygon_point_list(vector<point_int> list) {
+    if (list.size() < 1)
+      return grid_fast_msgs::msg::Point2DIntList();
+    point_int first, last;
+    grid_fast_msgs::msg::Point2DIntList poly_points;
+    first = list[0];
+    last = first;
+    grid_fast_msgs::msg::Point2DInt p_to_add;
+    p_to_add.x = first.x;
+    p_to_add.y = first.y;
+    poly_points.list.push_back(p_to_add);
+    for (int i = 1; i < list.size(); i++) {
+      point_int p = list[i];
+      if (p == first)
+        break;
+      if (p == last)
+        continue;
+      last = p;
+      p_to_add.x = p.x;
+      p_to_add.y = p.y;
+      poly_points.list.push_back(p_to_add);
+    }
+    return poly_points;
   }
 
   void pubMap() {
@@ -338,131 +387,9 @@ public:
     pubOpList.insert(pubOpList.end(), openingList->openingDebug.begin(),
                      openingList->openingDebug.end());
 
-    // Prepare debug map data
-    std::vector<std::vector<int>> dMap(
-        mapDebug->getMapSizeX(), std::vector<int>(mapDebug->getMapSizeY()));
-    for (int x = 0; x < mapDebug->getMapSizeX(); x++) {
-      for (int y = 0; y < mapDebug->getMapSizeY(); y++) {
-        dMap[x][y] = mapDebug->getMap(x, y);
-      }
-    }
-
-    // Prepare PolygonArray message for openings
-    /*jsk_recognition_msgs::msg::PolygonArray pubPolyArrayOld;*/
-    /*pubPolyArrayOld.header.frame_id = mapFrame;*/
-    /*pubPolyArrayOld.header.stamp = this->get_clock()->now();*/
-    /*pubPolyArrayOld.polygons.resize(pubOpList.size());*/
-    /*pubPolyArrayOld.labels.resize(pubOpList.size());*/
-    /*pubPolyArrayOld.likelihood.resize(pubOpList.size());*/
-    /**/
     float resolution = map->getMapResolution();
     int mapOriginX = -map->getMapOffsetX() / resolution;
     int mapOriginY = -map->getMapOffsetY() / resolution;
-    /**/
-    /*for (size_t i = 0; i < pubOpList.size(); i++) {*/
-    /*  double zHeight = map->getMapOffsetZ() + 0.11;*/
-    /*  opening op = pubOpList[i];*/
-    /*  for (size_t j = 0; j < op.occupiedPoints.size(); j++) {*/
-    /*    dMap[op.occupiedPoints[j].x][op.occupiedPoints[j].y] = 10;*/
-    /*  }*/
-    /*  dMap[op.start.x][op.start.y] = 100;*/
-    /*  dMap[op.end.x][op.end.y] = 50;*/
-    /**/
-    /*  point side = {static_cast<double>(op.end.x - op.start.x) * resolution,*/
-    /*                static_cast<double>(op.end.y - op.start.y) *
-     * resolution};*/
-    /**/
-    /*  double l = sqrt(std::abs(side.x * side.x + side.y * side.y));*/
-    /*  if (l < 0.01)*/
-    /*    continue;*/
-    /*  point nSide = {side.x / (16 * l), side.y / (16 * l)};*/
-    /*  point nNorm = {-nSide.y, nSide.x};*/
-    /**/
-    /*  geometry_msgs::msg::PolygonStamped p;*/
-    /*  p.header.frame_id = mapFrame;*/
-    /*  p.header.stamp = this->get_clock()->now();*/
-    /*  p.polygon.points.resize(7);*/
-    /**/
-    /*  p.polygon.points[0].x = (op.start.x - mapOriginX) * resolution;*/
-    /*  p.polygon.points[0].y = (op.start.y - mapOriginY) * resolution;*/
-    /*  p.polygon.points[0].z = zHeight;*/
-    /**/
-    /*  p.polygon.points[1].x = (op.start.x - mapOriginX) * resolution + side.x
-     * / 2 - nSide.x;*/
-    /*  p.polygon.points[1].y = (op.start.y - mapOriginY) * resolution + side.y
-     * / 2 - nSide.y;*/
-    /*  p.polygon.points[1].z = zHeight;*/
-    /**/
-    /*  p.polygon.points[2].x = (op.start.x - mapOriginX) * resolution + side.x
-     * / 2 + 2 * nNorm.x;*/
-    /*  p.polygon.points[2].y = (op.start.y - mapOriginY) * resolution + side.y
-     * / 2 + 2 * nNorm.y;*/
-    /*  p.polygon.points[2].z = zHeight;*/
-    /**/
-    /*  p.polygon.points[3].x = (op.start.x - mapOriginX) * resolution + side.x
-     * / 2 + nSide.x;*/
-    /*  p.polygon.points[3].y = (op.start.y - mapOriginY) * resolution + side.y
-     * / 2 + nSide.y;*/
-    /*  p.polygon.points[3].z = zHeight;*/
-    /**/
-    /*  p.polygon.points[4].x = (op.end.x - mapOriginX) * resolution;*/
-    /*  p.polygon.points[4].y = (op.end.y - mapOriginY) * resolution;*/
-    /*  p.polygon.points[4].z = zHeight;*/
-    /**/
-    /*  p.polygon.points[5].x = (op.end.x - mapOriginX) * resolution -
-     * nNorm.x;*/
-    /*  p.polygon.points[5].y = (op.end.y - mapOriginY) * resolution -
-     * nNorm.y;*/
-    /*  p.polygon.points[5].z = zHeight;*/
-    /**/
-    /*  p.polygon.points[6].x = (op.start.x - mapOriginX) * resolution -
-     * nNorm.x;*/
-    /*  p.polygon.points[6].y = (op.start.y - mapOriginY) * resolution -
-     * nNorm.y;*/
-    /*  p.polygon.points[6].z = zHeight;*/
-    /**/
-    /*  pubPolyArrayOld.polygons[i] = p;*/
-    /*  pubPolyArrayOld.labels[i] = op.label;*/
-    /*  pubPolyArrayOld.likelihood[i] = 1.0;*/
-    /*}*/
-
-    // Update topoMapMsg for debug map
-    for (int y = 0; y < map->getMapSizeY(); y++) {
-      for (int x = 0; x < map->getMapSizeX(); x++) {
-        int index = x + y * map->getMapSizeX();
-        topoMapMsg.data[index] = dMap[x][y];
-      }
-    }
-    pubdMap->publish(topoMapMsg);
-    /*pubTopoPolyDebug->publish(pubPolyArrayOld);*/
-
-    // Prepare PolygonArray message for regions
-    /*jsk_recognition_msgs::msg::PolygonArray pubPolyArray;*/
-    /*pubPolyArray.header.frame_id = mapFrame;*/
-    /*pubPolyArray.header.stamp = this->get_clock()->now();*/
-    /*pubPolyArray.polygons.resize(polygonList->size());*/
-    /*pubPolyArray.labels.resize(polygonList->size());*/
-    /*pubPolyArray.likelihood.resize(polygonList->size());*/
-    /**/
-    /*int c = 0;*/
-    /*for (size_t i = 0; i < polygonList->size(); i++) {*/
-    /*  polygon p = *polygonList->get(i);*/
-    /*  pubPolyArray.polygons[i] = get_polygon(p, resolution,
-     * map->getMapOffsetX(),*/
-    /*                                         map->getMapOffsetY(),
-     * map->getMapOffsetZ() + 0.1);*/
-    /*  pubPolyArray.labels[i] = p.label;*/
-    /*  pubPolyArray.likelihood[i] = 1.0;*/
-    /*  if (p.label == 30 || p.label == 41 || p.label == 76 || p.label == 52)*/
-    /*    c++;*/
-    /*}*/
-    /**/
-    /*if (c != oldNodCount) {*/
-    /*  oldNodCount = c;*/
-    /*  RCLCPP_INFO(this->get_logger(), "Node count: %d", c);*/
-    /*}*/
-    /**/
-    /*pubTopoPoly->publish(pubPolyArray);*/
 
     // Prepare robot paths
     std::vector<robotPath> robotPathList;
@@ -472,48 +399,6 @@ public:
         robotPathList.push_back(p->pathList[pathI]);
       }
     }
-
-    visualization_msgs::msg::MarkerArray msgRobotPath;
-    msgRobotPath.markers.resize(1 + robotPathList.size());
-
-    // Delete all previous markers
-    msgRobotPath.markers[0].header.frame_id = mapFrame;
-    msgRobotPath.markers[0].header.stamp = this->get_clock()->now();
-    msgRobotPath.markers[0].action = visualization_msgs::msg::Marker::DELETEALL;
-
-    for (size_t i = 1; i <= robotPathList.size(); i++) {
-      msgRobotPath.markers[i].header.frame_id = mapFrame;
-      msgRobotPath.markers[i].header.stamp = this->get_clock()->now();
-      msgRobotPath.markers[i].ns = "robotPathList";
-      msgRobotPath.markers[i].id = i;
-      msgRobotPath.markers[i].type =
-          visualization_msgs::msg::Marker::LINE_STRIP;
-      msgRobotPath.markers[i].action = visualization_msgs::msg::Marker::ADD;
-
-      msgRobotPath.markers[i].pose.position.x = 0;
-      msgRobotPath.markers[i].pose.position.y = 0;
-      msgRobotPath.markers[i].pose.position.z = map->getMapHight() + 0.05;
-      msgRobotPath.markers[i].pose.orientation.w = 1.0;
-      msgRobotPath.markers[i].scale.x = 0.1;
-      msgRobotPath.markers[i].scale.y = 0.1;
-      msgRobotPath.markers[i].scale.z = 0.1;
-      msgRobotPath.markers[i].color.a = 1.0;
-      msgRobotPath.markers[i].color.r = 1.0;
-      msgRobotPath.markers[i].color.g = 0.0;
-      msgRobotPath.markers[i].color.b = 0.0;
-      msgRobotPath.markers[i].lifetime = rclcpp::Duration(0, 0);
-
-      size_t pathIndex = i - 1;
-      msgRobotPath.markers[i].points.resize(robotPathList[pathIndex].size());
-      for (size_t m = 0; m < robotPathList[pathIndex].size(); m++) {
-        msgRobotPath.markers[i].points[m].x =
-            (robotPathList[pathIndex][m].x - mapOriginX) * resolution;
-        msgRobotPath.markers[i].points[m].y =
-            (robotPathList[pathIndex][m].y - mapOriginY) * resolution;
-        msgRobotPath.markers[i].points[m].z = 0;
-      }
-    }
-    pubRobotPath->publish(msgRobotPath);
 
     // Prepare polygon debug markers
     visualization_msgs::msg::MarkerArray polyDebug;
@@ -554,6 +439,7 @@ public:
     grid_fast_msgs::msg::TopometricMap topometricMapMsg;
     topometricMapMsg.header = topoMapMsg.header;
     topometricMapMsg.info = topoMapMsg.info;
+    topoMapMsg.info.origin.position.z += 0.05;
     topometricMapMsg.polygon_type.resize(topoMapMsg.data.size(), -1);
     topometricMapMsg.polygon_id.resize(topoMapMsg.data.size(), -1);
     topometricMapMsg.polygons.resize(polygonList->size());
@@ -573,6 +459,8 @@ public:
       topometricMapMsg.polygons[i].center.x = polygonList->get(i)->center.x;
       topometricMapMsg.polygons[i].center.y = polygonList->get(i)->center.y;
       topometricMapMsg.polygons[i].type = polygonList->get(i)->label;
+      topometricMapMsg.polygons[i].polygon_points =
+          get_polygon_point_list(polygonList->get(i)->polygon_points_desplay);
 
       // Connected paths
       size_t size = polygonList->get(i)->pathList.size();

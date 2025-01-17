@@ -1,5 +1,7 @@
 #include "OpeningHandler.hh"
 #include "Utility.hh"
+#include <cstddef>
+#include <sys/types.h>
 
 OpeningHandler::OpeningHandler(int numberOfDir, int minGroupSize,
                                int minFrontier, int objectFilterMaxStep,
@@ -209,7 +211,7 @@ void OpeningHandler::getAndFilterWall(MapHandler *map, point_int start,
       break;
   }
   start = step.end;
-  for (int s = 0; s < 2000000; s++) {
+  for (int s = 0; s < 20000000; s++) {
     point_int oS = step.end;
     step = map->ant_step(step, true);
     wallCell w;
@@ -308,9 +310,14 @@ void OpeningHandler::update(MapHandler *map) {
 
   // Find Openings
   OpeningHandler::findOpenings(map);
+
+  for (int i = 0; i < openingList.size(); i++) {
+  }
   // Opening Optimization
   OpeningHandler::fixOverlapingPoints(map);
   // Fix overlap
+  for (int i = 0; i < openingList.size(); i++) {
+  }
   for (int i = 0; i < OpeningHandler::size(); i++) {
     if (OpeningHandler::openingList[i]->label > 10)
       continue;
@@ -324,10 +331,19 @@ void OpeningHandler::update(MapHandler *map) {
       if (OpeningHandler::openingList[j]->label == 4)
         continue;
       if (!OpeningHandler::intersectOpenings(OpeningHandler::openingList[i],
-                                             OpeningHandler::openingList[j]))
+                                             OpeningHandler::openingList[j])) {
         continue;
-      OpeningHandler::fixOverlap(OpeningHandler::openingList[i],
-                                 OpeningHandler::openingList[j], map);
+      }
+      int r = OpeningHandler::fixOverlap(OpeningHandler::openingList[i],
+                                         OpeningHandler::openingList[j], map);
+      if (r == 0)
+        continue;
+      if (r == 1) {
+        i--;
+        break;
+      } else {
+        j--;
+      }
     }
   }
   // Remove openings that still overlap
@@ -514,7 +530,7 @@ point_int OpeningHandler::findIntersectionPoint(opening o1, opening o2) {
     m1 = INFINITY;
     b1 = o1.start.x;
   } else {
-    m1 = (o1.end.y - o1.start.y) / (o1.end.x - o1.start.x);
+    m1 = float(o1.end.y - o1.start.y) / float(o1.end.x - o1.start.x);
     b1 = o1.start.y - m1 * o1.start.x;
   }
   // Line 2: y = m2*x + b2, where m2 = (y4 - y3)/(x4 - x3) and b2 = y3 - m2*x3
@@ -523,7 +539,7 @@ point_int OpeningHandler::findIntersectionPoint(opening o1, opening o2) {
     m2 = INFINITY;
     b2 = o2.start.x;
   } else {
-    m2 = (o2.end.y - o2.start.y) / (o2.end.x - o2.start.x);
+    m2 = float(o2.end.y - o2.start.y) / float(o2.end.x - o2.start.x);
     b2 = o2.start.y - m2 * o2.start.x;
   }
   // Find intersection
@@ -762,8 +778,9 @@ bool OpeningHandler::intersectOpenings(openingDetection *o1,
   p2 = OpeningHandler::generateOpeningPoints(o2);
   for (int i1 = 0; i1 < p1.size(); i1++) {
     for (int i2 = 0; i2 < p2.size(); i2++) {
-      if (p1[i1] == p2[i2])
+      if (p1[i1] == p2[i2]) {
         return true;
+      }
     }
   }
 
@@ -811,8 +828,8 @@ bool OpeningHandler::ccw(point A, point B, point C) {
   return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
 }
 
-void OpeningHandler::fixOverlap(openingDetection *o1, openingDetection *o2,
-                                MapHandler *map) {
+int OpeningHandler::fixOverlap(openingDetection *o1, openingDetection *o2,
+                               MapHandler *map) {
   int conection_lenght[] = {-1, -1}; // direction and distans to conection
   bool moveEndO2[2];
   for (int sides = 0; sides < 2; sides++) {
@@ -837,10 +854,11 @@ void OpeningHandler::fixOverlap(openingDetection *o1, openingDetection *o2,
   if (conection_lenght[0] == -1 && conection_lenght[1] == -1) {
     if (dist(o1->start(), o1->end()) < dist(o2->start(), o2->end())) {
       OpeningHandler::disable(o2, 16);
+      return 2;
     } else {
       OpeningHandler::disable(o1, 16);
+      return 1;
     }
-    return;
   }
   // If openings share one or two common wall check which side should be moved.
   int sides = 1;
@@ -855,25 +873,25 @@ void OpeningHandler::fixOverlap(openingDetection *o1, openingDetection *o2,
   int indexHolder;
 
   OpeningHandler::swapEnds(&newO1, !sides, &newO2, !moveEndO2[sides]);
-
   if (!OpeningHandler::checkForWall(&newO1, map) &&
       !OpeningHandler::checkForWall(&newO2, map)) {
     wallCell *w1 = o1->getConnection(!sides);
     wallCell *w2 = o2->getConnection(!moveEndO2[sides]);
     o1->connect(!sides, w2);
     o2->connect(!moveEndO2[sides], w1);
-    return;
   }
   // Check if the issue was sold otherwise delete the longest opening.
   if (OpeningHandler::intersectOpenings(o1, o2)) {
     if (dist(o1->start(), o1->end()) < dist(o2->start(), o2->end())) {
       OpeningHandler::disable(o2, 16);
+      return 2;
 
     } else {
       OpeningHandler::disable(o1, 16);
+      return 1;
     }
   }
-  return;
+  return 0;
 }
 
 void OpeningHandler::swapEnds(opening *o1, bool swapStart1, opening *o2,

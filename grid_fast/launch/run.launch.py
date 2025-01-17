@@ -15,7 +15,7 @@ def generate_launch_description():
     node_params = {
         'map_frame': 'map',
         'polygon_downsampling': 1,
-        'voronoi_downsampling': 1,
+        'voronoi_downsampling': 4,
         'number_of_scanning_direction': 4,
         'min_gap_size': 3,
         'unknown_cells_filter': 1,
@@ -47,6 +47,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         grid_fast_node,
-        rviz_node,
+        #rviz_node,
     ])
 
