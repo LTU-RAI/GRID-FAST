@@ -47,6 +47,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         grid_fast_node,
-        #rviz_node,
+        rviz_node,
     ])
 
