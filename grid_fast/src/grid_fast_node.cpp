@@ -28,13 +28,8 @@ private:
   // Subscribers and Publishers
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr subOccupancyMap;
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pubTopoMap;
-  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pubdMap;
-  rclcpp::Publisher<grid_fast_msgs::msg::OpeningList>::SharedPtr pubOpeningList;
-  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pubMapDebug;
   rclcpp::Publisher<grid_fast_msgs::msg::TopometricMap>::SharedPtr
       pubTopometricMap;
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
-      pubRobotPath;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
       pubPolyDebug;
 
@@ -153,14 +148,6 @@ public:
 
     pubTopoMap = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
         "/grid_fast/map_filtered", 5);
-    pubdMap = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
-        "/grid_fast/map_d", 5);
-    pubOpeningList = this->create_publisher<grid_fast_msgs::msg::OpeningList>(
-        "/grid_fast/opening_list_int", 5);
-    pubMapDebug = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
-        "/grid_fast/map_debug", 5);
-    pubRobotPath = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-        "/grid_fast/robot_path", 5);
     pubPolyDebug = this->create_publisher<visualization_msgs::msg::MarkerArray>(
         "/grid_fast/polyDebug", 5);
     pubTopometricMap =
@@ -356,27 +343,9 @@ public:
     }
     pubTopoMap->publish(topoMapMsg);
 
-    // Prepare opening list for publishing
-    std::vector<opening> pubOpList;
-    for (int i = 0; i < openingList->size(); i++) {
-      opening op = openingList->get(i)->getOpening();
-      pubOpList.push_back(op);
-    }
-    pubOpList.insert(pubOpList.end(), openingList->openingDebug.begin(),
-                     openingList->openingDebug.end());
-
     float resolution = map->getMapResolution();
     int mapOriginX = -map->getMapOffsetX() / resolution;
     int mapOriginY = -map->getMapOffsetY() / resolution;
-
-    // Prepare robot paths
-    std::vector<robotPath> robotPathList;
-    for (size_t i = 0; i < polygonList->size(); i++) {
-      polygon *p = polygonList->get(i);
-      for (size_t pathI = 0; pathI < p->pathList.size(); pathI++) {
-        robotPathList.push_back(p->pathList[pathI]);
-      }
-    }
 
     // Prepare polygon debug markers
     visualization_msgs::msg::MarkerArray polyDebug;
@@ -472,8 +441,6 @@ public:
         topometricMapMsg.polygons[i].openings[oIndex].label = op->label;
       }
     }
-
-    pubMapDebug->publish(topoMapMsg);
     pubTopometricMap->publish(topometricMapMsg);
   }
 };
